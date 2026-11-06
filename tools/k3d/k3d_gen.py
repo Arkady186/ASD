@@ -2,9 +2,9 @@
 Камера найдена по футбольному полю (105×68 м) и вертикалям домов; точки фото
 переводятся в метры на земле (или на высоте крыши)."""
 import json, sys, numpy as np
-sys.path.insert(0, '/tmp/cal')
+import os; HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 from fit2 import basis, proj
-p = np.load('/tmp/cal/fit2.npy')
+p = np.load(os.path.join(HERE, 'fit2.npy'))
 f, C, F, Rt, U = basis(p)
 CX, CY = 960, 547
 def unproj(u, v, y=0.0):
@@ -113,5 +113,5 @@ data = dict(
   places={k: unproj(*v, 0) for k, v in dict(school=(680,420), kindergarten=(875,575), sport=(970,420), park=(1215,800),
           church=(1432,466), playground=(655,785), parking=(1400,650), cafe=(1150,560)).items()},
 )
-open('/home/claude/asd/assets/k3d-data.js', 'w').write('// Сгенерировано tools/k3d_gen.py по откалиброванному фото генплана\nexport const DATA = ' + json.dumps(data, ensure_ascii=False) + ';\n')
+open(os.path.join(HERE, '..', '..', 'assets', 'k3d-data.js'), 'w').write('// Сгенерировано tools/k3d_gen.py по откалиброванному фото генплана\nexport const DATA = ' + json.dumps(data, ensure_ascii=False) + ';\n')
 print('ok', len(houses))
