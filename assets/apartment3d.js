@@ -49,7 +49,7 @@ function T(c, { srgb = true, rep = true, aniso = 8 } = {}) {
   const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; return t;
 }
-function woodCanvas(base, S = 1024, vertical = true) {
+export function woodCanvas(base, S = 1024, vertical = true) {
   const [c, g] = cv(S, S); g.fillStyle = base; g.fillRect(0, 0, S, S);
   const col = new THREE.Color(base);
   for (let i = 0; i < 28; i++) { // широкие мягкие полосы годовых слоёв
@@ -71,7 +71,7 @@ function woodCanvas(base, S = 1024, vertical = true) {
   if (!vertical) { const [c2, g2] = cv(S, S); g2.translate(S, 0); g2.rotate(Math.PI / 2); g2.drawImage(c, 0, 0); return c2; }
   return c;
 }
-function marbleCanvas(base, vein = '90,90,95', S = 1024) {
+export function marbleCanvas(base, vein = '90,90,95', S = 1024) {
   const [c, g] = cv(S, S); g.fillStyle = base; g.fillRect(0, 0, S, S);
   for (let i = 0; i < 9; i++) {
     g.strokeStyle = `rgba(${vein},${0.12 + rnd() * 0.25})`; g.lineWidth = 0.6 + rnd() * 2.4;
@@ -82,12 +82,12 @@ function marbleCanvas(base, vein = '90,90,95', S = 1024) {
   grain(g, S, S, 40000, 0.04);
   return c;
 }
-function speckCanvas(base, S = 1024) {
+export function speckCanvas(base, S = 1024) {
   const [c, g] = cv(S, S); g.fillStyle = base; g.fillRect(0, 0, S, S);
   for (let i = 0; i < 26000; i++) { const v = rnd(); g.fillStyle = v > 0.92 ? 'rgba(235,235,230,.55)' : v > 0.6 ? 'rgba(90,90,92,.4)' : 'rgba(10,10,10,.35)'; g.fillRect(rnd() * S, rnd() * S, 1 + rnd() * 2.5, 1 + rnd() * 2.5); }
   return c;
 }
-function concreteCanvas(base = '#9C9A95', S = 1024) {
+export function concreteCanvas(base = '#9C9A95', S = 1024) {
   const [c, g] = cv(S, S); g.fillStyle = base; g.fillRect(0, 0, S, S);
   for (let i = 0; i < 700; i++) { const r = 10 + rnd() * 70; g.fillStyle = `rgba(${rnd() > 0.5 ? '255,255,255' : '40,40,40'},${0.01 + rnd() * 0.025})`; g.beginPath(); g.arc(rnd() * S, rnd() * S, r, 0, 7); g.fill(); }
   for (let i = 0; i < 160; i++) { g.fillStyle = 'rgba(40,40,40,.25)'; g.beginPath(); g.arc(rnd() * S, rnd() * S, 1 + rnd() * 2.5, 0, 7); g.fill(); } // поры
@@ -108,7 +108,7 @@ function parquetCanvas(S = 2048) { // доска 1.2 × 0.15 м, текстур�
   }
   return c;
 }
-function frameCanvas(base, wood) { // фасад с фрезерованной рамкой (UV 0..1 на одну дверь)
+export function frameCanvas(base, wood) { // фасад с фрезерованной рамкой (UV 0..1 на одну дверь)
   const S = 512, [c, g] = cv(S, S);
   if (wood) g.drawImage(woodCanvas(base, S), 0, 0); else { g.fillStyle = base; g.fillRect(0, 0, S, S); grain(g, S, S, 4000, 0.03); }
   const m = 46, k = 14;

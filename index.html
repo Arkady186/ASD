@@ -11,7 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="preload" as="image" href="assets/img/sky.jpg">
 <link rel="stylesheet" href="assets/site.css">
-<script>document.documentElement.classList.replace('no-js', 'js');</script>
+<script>document.documentElement.classList.replace('no-js', 'js'); window.__tryon = location.hash === '#primerka';</script>
 </head>
 <body data-view="sky">
 
@@ -24,6 +24,7 @@
     <a href="#kvartal" data-go="kvartal">Квартал</a>
     <a href="#dom" data-go="dom">Квартиры</a>
     <a href="#holl" data-go="holl">Холл</a>
+    <a class="nav-try" href="#primerka" data-tryon>Примерить кухню</a>
     <a class="nav-phone" href="tel:+78005550562">8 800 555-05-62</a>
   </nav>
 </header>
@@ -199,5 +200,11 @@
 <script type="importmap">{"imports":{"three":"./assets/vendor/three.module.min.js"}}</script>
 <script src="assets/site.js"></script>
 <script type="module" src="assets/kvartal3d.js"></script>
+<script type="module">
+  // «Примерить кухню на своё фото»: модуль грузится только по нажатию
+  const openTry = () => import('./assets/tryon.js').then(m => m.openTryon());
+  document.addEventListener('click', e => { const b = e.target.closest('[data-tryon]'); if (!b) return; e.preventDefault(); openTry(); });
+  if (window.__tryon) openTry();
+</script>
 </body>
 </html>

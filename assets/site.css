@@ -610,3 +610,78 @@ body.is-moving .btn-bar { opacity: 0; pointer-events: none; }
   .apt-say { max-width: 170px; font-size: 12.5px; }
   .apt-info .apt-steps { margin-bottom: 8px; }
 }
+
+/* ---------- Примерка кухни на своё фото ---------- */
+.tryon-open, .tryon-open body { overflow: hidden; }
+.tryon { position: fixed; inset: 0; z-index: 100; background: #161616; color: var(--ink); display: flex; flex-direction: column; opacity: 0; transition: opacity .3s; }
+.tryon[hidden] { display: none; }
+.tryon.is-in { opacity: 1; }
+.tr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 18px var(--m) 12px; }
+.tr-head h2 { font-size: var(--step-lead); font-weight: 400; margin: 2px 0 0; }
+.tr-kick { margin: 0; color: var(--accent); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; }
+.tr-x { width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255,255,255,.08); color: var(--ink); font-size: 28px; line-height: 1; cursor: pointer; }
+.tr-intro[hidden] { display: none; }
+.tr-intro { flex: 1; display: grid; place-items: center; padding: 16px var(--m) 40px; }
+.tr-drop { max-width: 520px; text-align: center; padding: 40px 32px; border: 1.5px dashed rgba(255,255,255,.25); }
+.tr-drop svg { width: 56px; height: 56px; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linejoin: round; }
+.tr-drop h3 { font-size: var(--step-head); font-weight: 400; line-height: 1.05; margin: 12px 0; }
+.tr-drop p { color: var(--muted); margin: 0 0 24px; line-height: 1.5; }
+.tr-file { cursor: pointer; display: inline-flex; }
+.tr-demo { display: block; margin: 16px auto 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
+.tr-work { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 360px; }
+.tr-work[hidden] { display: none; }
+.tr-stage { position: relative; min-height: 0; display: grid; place-items: center; padding: 8px 16px 16px var(--m); }
+.tr-frame { position: relative; touch-action: none; }
+.tr-frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tr-before { pointer-events: none; }
+.tr-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.tr-poly { fill: rgba(143,166,142,.12); stroke: #fff; stroke-width: 1.5; stroke-dasharray: 6 5; }
+.tr-poly.upper { fill: rgba(120,160,220,.12); }
+.tr-handles { position: absolute; inset: 0; pointer-events: none; }
+.tr-h { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border-radius: 50%; border: 3px solid #fff; background: var(--accent);
+  box-shadow: 0 2px 10px rgba(0,0,0,.5); pointer-events: auto; cursor: grab; touch-action: none; padding: 0; }
+.tr-h-upper { background: #7FA2D8; }
+.tr-h[hidden] { display: none; }
+.tr-h:focus-visible { outline: 3px solid #FFD27A; }
+.tr-cmp { position: absolute; inset: 0; pointer-events: none; }
+.tr-cmp[hidden] { display: none; }
+.tr-bar { position: absolute; top: 0; bottom: 0; left: var(--x); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 12px rgba(0,0,0,.5); }
+.tr-bar i { position: absolute; top: 50%; left: 50%; width: 44px; height: 44px; margin: -22px; border-radius: 50%; background: rgba(24,24,24,.8); border: 2px solid #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='1.8'%3E%3Cpath d='M9 6l-6 6 6 6M15 6l6 6-6 6'/%3E%3C/svg%3E"); background-size: 22px; background-position: center; background-repeat: no-repeat; }
+.tr-lab { position: absolute; top: 12px; padding: 6px 12px; border-radius: 999px; background: rgba(24,24,24,.75); font-size: 13px; }
+.tr-lab.l { left: 12px; } .tr-lab.r { right: 12px; background: var(--accent); color: var(--accent-ink); }
+.tryon.is-cmp .tr-frame { cursor: ew-resize; }
+.tr-panel { overflow-y: auto; padding: 4px var(--m) 24px 8px; }
+.tr-step { padding: 14px 0 16px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.tr-step h4 { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 500; margin: 0 0 8px; }
+.tr-step h4 b { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 13px; }
+.tr-step p { color: var(--muted); font-size: 13.5px; line-height: 1.45; margin: 0 0 10px; }
+.tr-toggles { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; margin-bottom: 12px; }
+.tr-toggles input { accent-color: var(--accent); }
+.tr-len { display: grid; gap: 6px; font-size: 14px; }
+.tr-len input { accent-color: var(--accent); width: 100%; }
+.tr-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tr-chips button { display: inline-flex; align-items: baseline; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: none; color: var(--ink); font: inherit; font-size: 13.5px; cursor: pointer; }
+.tr-chips button small { color: var(--muted); font-size: 11px; }
+.tr-chips button.is-on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tr-chips button.is-on small { color: rgba(0,0,0,.55); }
+.tr-sws { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13.5px; }
+.tr-sws button { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); background: var(--c); cursor: pointer; padding: 0; }
+.tr-sws button.is-on { border-color: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.tr-sub { color: var(--muted); font-size: 12.5px !important; margin: 4px 0 6px !important; }
+.tr-go .btn { width: 100%; justify-content: center; border: 0; cursor: pointer; font: inherit; }
+.tr-go .btn[hidden] { display: none; }
+.tr-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.tr-ghost { flex: 1; height: 40px; border: 1px solid rgba(255,255,255,.25); border-radius: 999px; background: none; color: var(--ink); font: inherit; font-size: 13.5px; cursor: pointer; }
+.tr-ghost[hidden] { display: none; }
+.tr-note { font-size: 12.5px !important; }
+.tr-cta { margin: 4px 0 8px; text-decoration: none; }
+.tr-msg a { flex: 1; text-align: center; padding: 9px 8px; border-radius: 999px; background: rgba(255,255,255,.08); color: var(--ink); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.nav-try { color: var(--accent) !important; }
+.apt-try { border: 1px solid rgba(255,255,255,.25) !important; }
+@media (max-width: 899px) {
+  .tr-head { padding: 12px 16px 8px; }
+  .tr-work { display: block; overflow-y: auto; }
+  .tr-stage { position: sticky; top: 0; z-index: 2; height: 50svh; padding: 0 8px 8px; background: #161616; }
+  .tr-panel { padding: 0 16px 32px; overflow: visible; }
+}
