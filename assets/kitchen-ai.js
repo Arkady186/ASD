@@ -209,7 +209,8 @@ export async function analyze(img) {
     const front = x => Math.min(Math.max(f.front.at(x), back(x)), floor(x) - H * 0.05);
     const ppm = x => (floor(x) - front(x)) / 0.86, edge = x => 0.04 * ppm(x);
     const L = Math.min(8, Math.max(0.6, len3d(xa, floor(xa) - front(xa), xb, floor(xb) - front(xb), 0.86)));
-    const seg = { len: L, lower: [[xa, front(xa) - edge(xa)], [xb, front(xb) - edge(xb)], [xb, floor(xb)], [xa, floor(xa)]], top: null, uppers: [] };
+    const topR = Math.max((front(xa) - back(xa)) / (floor(xa) - front(xa)), (front(xb) - back(xb)) / (floor(xb) - front(xb)));
+    const seg = { topR, len: L, lower: [[xa, front(xa) - edge(xa)], [xb, front(xb) - edge(xb)], [xb, floor(xb)], [xa, floor(xa)]], top: null, uppers: [] };
     // верх столешницы + пристенный бортик 4 см (закрывает стык со стеной)
     const up = x => back(x) - 0.07 * ppm(x);
     seg.top = [[xa, up(xa)], [xb, up(xb)], [xb, front(xb) - edge(xb)], [xa, front(xa) - edge(xa)]];
@@ -250,8 +251,8 @@ export async function analyze(img) {
   }
   const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
   const conf = { island: nK ? isl / nK : 0, uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
-    ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))) };
-  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 3.6 && out.length <= 3;
+    ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))), topR: Math.max(...out.map(sg => sg.topR)) };
+  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && conf.topR < 0.75 && out.length <= 3;
   if (!sure && !self.__asdForce) return { ok: false, reason: 'complex', conf, mask: m, W, H };
   const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
   const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];
