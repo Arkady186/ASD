@@ -8,6 +8,24 @@ import onnxruntime as ort
 src = 'openmmlab/upernet-convnext-tiny'
 m = UperNetForSemanticSegmentation.from_pretrained(src).eval()
 
+class StaticAdaptiveAvgPool(torch.nn.Module):
+    """adaptive_avg_pool2d через явные срезы (вход фиксирован 512×512 — границы ячеек постоянны)."""
+    def __init__(s, out):
+        super().__init__(); s.o = (out, out) if isinstance(out, int) else tuple(out)
+    def forward(s, x):
+        H, W = int(x.shape[-2]), int(x.shape[-1]); oh, ow = s.o
+        rows = []
+        for i in range(oh):
+            a, b = (i * H) // oh, -((-(i + 1) * H) // oh)
+            cols = [x[:, :, a:b, (j * W) // ow:-((-(j + 1) * W) // ow)].mean(dim=(2, 3), keepdim=True) for j in range(ow)]
+            rows.append(torch.cat(cols, dim=3))
+        return torch.cat(rows, dim=2)
+
+def patch(mod):
+    for name, ch in mod.named_children():
+        if isinstance(ch, torch.nn.AdaptiveAvgPool2d): setattr(mod, name, StaticAdaptiveAvgPool(ch.output_size))
+        else: patch(ch)
+
 class Head(torch.nn.Module):
     def __init__(s, m): super().__init__(); s.m = m
     def forward(s, pixel_values):
@@ -16,7 +34,11 @@ class Head(torch.nn.Module):
 
 x = torch.randn(1, 3, 512, 512)
 with torch.no_grad():
+    ref_orig = Head(m)(x)
+patch(m)
+with torch.no_grad():
     ref = Head(m)(x)
+print('patched pooling max diff', float((ref - ref_orig).abs().max()))
 print('logits', tuple(ref.shape))
 os.makedirs('out', exist_ok=True)
 torch.onnx.export(Head(m), x, 'out/fp32.onnx', input_names=['pixel_values'], output_names=['logits'], opset_version=17, dynamo=False)
