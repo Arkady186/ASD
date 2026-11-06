@@ -783,6 +783,8 @@ function start() {
     <button type="button" data-k="home" class="k3d-btn k3d-ico" aria-label="Исходный вид"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4"/></svg></button>
     <span class="k3d-sep"></span>
     <button type="button" data-k="future" class="k3d-btn k3d-tog is-on" aria-pressed="true"><i></i><span>Дома в проекте</span></button>
+    <button type="button" data-k="flat" class="k3d-btn k3d-flat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"/></svg><span>Квартира с кухней ASD</span></button>
+    <span class="k3d-sep"></span>
     <button type="button" data-k="time" class="k3d-btn k3d-tog" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg><span>День</span></button>`;
   const legend = document.createElement('div'); legend.className = 'k3d-legend';
   legend.innerHTML = '<span><i class="lg-built"></i>Сданы — 5 домов</span><span><i class="lg-plan"></i>В проекте — 17 домов</span>';
@@ -873,6 +875,7 @@ function start() {
     await animateTo(1600, k => wipe(1 - k));
     wipe(0);
     mode = '3d'; section.classList.add('is-3d');
+    if (window.__kvartira) { window.__kvartira = false; setTimeout(quickFlat, 300); }
     if (phoneMQ.matches) { goal.sx = 0; goal.sy = 0; }
   }
   async function close(fast) {
@@ -1226,6 +1229,9 @@ function start() {
     await fade(false, fast ? 150 : 600);
   }
 
+  // Быстрый вход: сданный дом 1, 12 этаж — сразу в квартиру
+  function quickFlat() { if (mode !== '3d') return; const h = S.houses[0]; touchFirst(); selectHouse(h); setTimeout(() => enterApartment(h, 12), 300); }
+
   /* Кнопки панели */
   bar.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -1235,6 +1241,7 @@ function start() {
     if (k === 'out') zoomAt(null, null, 1.4);
     if (k === 'home') { deselect(); flyTo({ ...home, sx: 0, sy: 0, roll: 0 }, 1400); }
     if (k === 'future') { futureOn = !futureOn; S.ghosts.forEach(g => { g.visible = futureOn; }); b.classList.toggle('is-on', futureOn); b.setAttribute('aria-pressed', futureOn); need = true; }
+    if (k === 'flat') quickFlat();
     if (k === 'time') { day = !day; S.setTime(day ? 'day' : 'sunset'); b.classList.toggle('is-on', day); b.setAttribute('aria-pressed', day); }
   });
   open3d.addEventListener('click', () => open(0));

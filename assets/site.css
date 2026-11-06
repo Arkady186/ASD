@@ -685,3 +685,7 @@ body.is-moving .btn-bar { opacity: 0; pointer-events: none; }
   .tr-stage { position: sticky; top: 0; z-index: 2; height: 50svh; padding: 0 8px 8px; background: #161616; }
   .tr-panel { padding: 0 16px 32px; overflow: visible; }
 }
+
+.k3d-flat { background: rgba(143,166,142,.22); }
+.k3d-flat svg { stroke: var(--accent); }
+@media (max-width: 899px) { .k3d-flat span { display: inline; } }
