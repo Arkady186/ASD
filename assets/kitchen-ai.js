@@ -241,7 +241,7 @@ export async function analyze(img) {
       mt.push([x, y]);
     }
     const mtop = mt.length >= 6 ? fit(mt) : null;
-    const up = x => { const b = back(x), p = ppm(x), lo = b - 0.07 * p, hi = b - 0.15 * p; return mtop ? Math.min(lo, Math.max(hi, mtop.at(x) - 2)) : lo; };
+    const up = x => { const b = back(x), p = ppm(x), lo = b - 0.07 * p, hi = b - 0.2 * p; return mtop ? Math.min(lo, Math.max(hi, mtop.at(x) - 2 - H * 0.01)) : lo; };
     seg.top = [[xa, up(xa)], [xb, up(xb)], [xb, front(xb) - edge(xb)], [xa, front(xa) - edge(xa)]];
     seg.topDepth = Math.max(0.02, Math.min(0.6, ((front(xa) - edge(xa) - back(xa)) / ppm(xa) + (front(xb) - edge(xb) - back(xb)) / ppm(xb)) / 2 * 1.6));
     const upFrac = x => (back(x) - up(x)) / Math.max(1, front(x) - edge(x) - up(x));
