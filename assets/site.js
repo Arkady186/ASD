@@ -187,6 +187,7 @@
       if (id === 'kvartal') centerMedia(id, 970 / 1920);
       if (id === 'dom') centerMedia(id, 0.5);
     }
+    if (id === 'kvartal' && window.OP3D) window.OP3D.open();
     if (id === 'dom') {
       el.classList.add('is-open');
       frameDom(true);
@@ -197,6 +198,8 @@
 
   async function leave(id) {
     hideSpot(true);
+    // 3D-генплан: камера возвращается к ракурсу фото, шторка задвигается
+    if (id === 'kvartal' && window.OP3D) await window.OP3D.close(true);
     clearFlat();
     scenes[id].classList.add('is-leaving');
     if (id === 'dom') {
@@ -651,6 +654,7 @@
   let acc = 0, accAt = 0, wentAt = 0;
   addEventListener('wheel', e => {
     if (phone.matches || busy || dialog.open || canScroll(e.target, e.deltaY)) return;
+    if (current === 'kvartal' && window.OP3D && window.OP3D.isOpen()) return; // в 3D колесо приближает
     const now = performance.now();
     if (now - accAt > 260) acc = 0;
     accAt = now;
