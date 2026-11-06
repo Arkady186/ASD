@@ -315,6 +315,8 @@ function build() {
       step('seg'); await paint();
       const geo = await AI.analyze(S.img);
       if (tok !== S.run) return;
+      S.conf = geo.conf || null;
+      if (!geo.ok && geo.reason === 'complex') return manual('На фото сложная планировка — остров, несколько рядов или кухня видна сбоку, и автоматически поставить кухню ровно не получилось. Сфотографируйте один ряд шкафов спереди — или отметьте 4 точки вручную.');
       if (!geo.ok) return manual(geo.reason === 'nokitchen' ? 'Нейросеть не нашла на этом фото кухню. Попробуйте другое фото или отметьте шкафы вручную — 4 точки.' : 'Нейросеть нашла кухню, но не смогла уверенно определить нижние шкафы. Отметьте их вручную — 4 точки.');
       step('erase'); await paint();
       const clean = await AI.erase(S.img, geo.mask, geo.W, geo.H);

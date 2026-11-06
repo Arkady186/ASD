@@ -147,7 +147,7 @@ export async function analyze(img) {
 
   // колонки нижнего ряда: верх столешницы (у стены), передний край, линия пола
   const pL = sampler(g.L, W, H), pT = sampler(g.T, W, H), step = Math.max(1, Math.round(W / 200)), cols = [];
-  const gap = Math.max(2, H * 0.015), minRun = H * 0.05;
+  const gap = Math.max(2, H * 0.015), minRun = H * 0.05; let stacked = 0, scanned = 0;
   for (let x = step / 2; x < W; x += step) {
     const runs = []; let s = -1, lastOn = -1e9;
     for (let y = 0; y < H; y++) {
@@ -156,6 +156,7 @@ export async function analyze(img) {
     if (s >= 0) runs.push([s, lastOn]);
     const ok = runs.filter(r => r[1] - r[0] > minRun);
     if (!ok.length) continue;
+    scanned++;
     const hasT = r => { for (let y = r[0]; y <= r[1]; y += 2) if (pT(x, y) > 0.5) return true; return false; };
     const withT = ok.filter(hasT), run = (withT.length ? withT : ok.filter(r => r[1] > H * 0.45)).pop();
     if (!run) continue;
@@ -163,6 +164,9 @@ export async function analyze(img) {
     for (let y = Math.max(0, ya - H * 0.03 | 0); y <= yb; y++) {
       if (pT(x, y) > 0.5) { if (t0 < 0) t0 = y; t1 = y; } else if (t0 >= 0 && y - t1 > gap) break;
     }
+    let tRuns = 0, inT = false, lastT = -1e9;
+    for (let y = 0; y < H; y += 2) { const on = pT(x, y) > 0.5; if (on && !inT && y - lastT > H * 0.06) tRuns++; if (on) lastT = y; inT = on; }
+    if (tRuns > 1) stacked++;
     const cap = ya + (yb - ya) * 0.35;
     const back = t0 >= 0 ? Math.min(ya, t0) : ya, front = t0 >= 0 ? Math.min(t1, cap) : ya;
     if (yb - front < H * 0.06) continue;
@@ -227,12 +231,27 @@ export async function analyze(img) {
     free.forEach(([x, ok], i) => { if (ok && s == null) s = Math.max(xa, x - stepX / 2); if (!ok) flush(x - stepX / 2); if (i === free.length - 1) flush(xb); });
     return seg;
   });
+  const [qc, qg] = canvasOf(W, H); qg.fillStyle = '#fff';
+  const poly = q => { qg.beginPath(); q.forEach(([x, y], i) => i ? qg.lineTo(x, y) : qg.moveTo(x, y)); qg.closePath(); qg.fill(); };
+  out.forEach(sg => { poly(sg.lower); if (sg.top) poly(sg.top); });
+  const qd = qg.getImageData(0, 0, W, H).data, near2 = dilate(m, W, H, Math.round(Math.max(W, H) * 0.02));
+  let nL = 0, cov = 0, nQ = 0, spill = 0;
+  for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+    const i = y * W + x, inQ = qd[i * 4] > 127, low = pL(x, y) > 0.5;
+    if (low) { nL++; if (inQ) cov++; }
+    if (inQ) { nQ++; if (!near2[i]) spill++; }
+  }
+  const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
+  const conf = { coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
+    ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))) };
+  const sure = conf.coverage > 0.6 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && out.length <= 3;
+  if (!sure) return { ok: false, reason: 'complex', conf, mask: m, W, H };
   const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
   const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];
   for (let i = 0; i < W * H; i += 2) if (ring[i] && !m[i]) lums.push(0.2126 * (rd[i * 4] / 255) ** 2.2 + 0.7152 * (rd[i * 4 + 1] / 255) ** 2.2 + 0.0722 * (rd[i * 4 + 2] / 255) ** 2.2);
   lums.sort((a, b) => a - b);
   const ringLum = lums.length ? lums[Math.floor(lums.length * 0.55)] : 0.3;
-  return { ok: true, mask: m, W, H, segs: out, ringLum, hadUpper: upperProbe > 0 && upperArea / upperProbe > 0.25 };
+  return { ok: true, conf, mask: m, W, H, segs: out, ringLum, hadUpper: upperProbe > 0 && upperArea / upperProbe > 0.25 };
 }
 
 /* ---------- стирание старой кухни (LaMa) ---------- */
