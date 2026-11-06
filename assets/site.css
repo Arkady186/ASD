@@ -689,3 +689,25 @@ body.is-moving .btn-bar { opacity: 0; pointer-events: none; }
 .k3d-flat { background: rgba(143,166,142,.22); }
 .k3d-flat svg { stroke: var(--accent); }
 @media (max-width: 899px) { .k3d-flat span { display: inline; } }
+
+/* примерка: автоматическая замена кухни нейросетью */
+.tr-ai { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(14,14,14,.42); overflow: hidden; z-index: 3; }
+.tr-ai[hidden] { display: none; }
+.tr-scan { position: absolute; left: 0; right: 0; top: 0; height: 22%; background: linear-gradient(180deg, rgba(143,166,142,0), rgba(143,166,142,.38), rgba(143,166,142,0)); animation: trscan 2.4s ease-in-out infinite alternate; will-change: transform; }
+@keyframes trscan { from { transform: translateY(-40%); } to { transform: translateY(400%); } }
+.tr-ai-card { position: relative; width: min(340px, 88%); padding: 16px 18px; background: rgba(22,22,22,.93); border: 1px solid rgba(255,255,255,.12); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+.tr-ai ol { list-style: none; margin: 0; padding: 0; }
+.tr-ai li { display: flex; align-items: center; gap: 10px; padding: 6px 0; color: var(--muted); font-size: 14px; }
+.tr-ai li::before { content: ''; flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.22); }
+.tr-ai li.is-on { color: var(--ink); }
+.tr-ai li.is-on::before { border-color: var(--accent); border-top-color: transparent; animation: trspin .8s linear infinite; will-change: transform; }
+.tr-ai li.is-done { color: var(--ink); }
+.tr-ai li.is-done::before { background: var(--accent); border-color: var(--accent); }
+.tr-ai li b { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--accent); }
+@keyframes trspin { to { transform: rotate(360deg); } }
+.tr-ai-note { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.tr-auto[hidden], .tr-man[hidden] { display: none; }
+.tr-warn { color: #FFD27A !important; }
+.tr-s1 .tr-ghost { width: 100%; flex: none; margin-top: 4px; }
+.tryon.is-busy .tr-panel { opacity: .55; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .tr-scan { animation: none; opacity: 0; } }
