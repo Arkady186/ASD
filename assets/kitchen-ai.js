@@ -1,13 +1,14 @@
 /* ASD · автоматическая замена кухни на фото.
    Две бесплатные открытые нейросети работают прямо в браузере (onnxruntime-web, WASM):
-   • SegFormer-B2 (ADE20K) — находит шкафы, столешницу, мойку, плиту, технику;
-   • LaMa — стирает старую кухню и дорисовывает стену и пол за ней.
+   • UperNet + ConvNeXt-Tiny, обучена на ADE20K (OpenMMLab, лицензия MIT) — находит шкафы,
+     столешницу, мойку, плиту, технику. Сжата до int8 и разрезана на части в ветке `models`
+     репозитория (раздаётся через jsDelivr), см. tools/export_seg.py там же;
+   • LaMa (Apache-2.0, сборка OpenCV Zoo) — стирает старую кухню и дорисовывает стену и пол.
    Фото никуда не отправляется. Модели скачиваются один раз и хранятся в кэше браузера.
    По найденным границам строится геометрия новой кухни: столешница, фасады, верхние шкафы. */
 const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
-const SEG = { url: 'https://huggingface.co/Xenova/segformer-b2-finetuned-ade-512-512/resolve/main/onnx/model_quantized.onnx', size: 28939869 };
+const SEG = { base: 'https://cdn.jsdelivr.net/gh/Arkady186/ASD@MODELS_REF/seg/', size: 60e6 };
 const LAMA = { url: 'https://huggingface.co/opencv/inpainting_lama/resolve/main/inpainting_lama_2025jan.onnx', size: 92591623 };
-export const MODELS_MB = Math.round((SEG.size + LAMA.size) / 1e6);
 
 /* классы ADE20K */
 const ID = { curtain: 18, blind: 63, wall: 0, floor: 3, windowpane: 8, cabinet: 10, plant: 17, shelf: 24, wardrobe: 35, box: 41, chest: 44, counter: 45, sink: 47, fridge: 50, flower: 66, countertop: 70, stove: 71, island: 73, towel: 81, tv: 89, bottle: 98, buffet: 99, washer: 107, basket: 112, oven: 118, microwave: 124, pot: 125, dishwasher: 129, hood: 133, vase: 135, tray: 137, plate: 142, glass: 147 };
@@ -27,28 +28,45 @@ function getOrt() {
   });
   return ortP;
 }
-async function fetchModel(m, onBytes) {
-  let cache = null;
-  try { cache = await caches.open('asd-ai-v1'); const hit = await cache.match(m.url); if (hit) { const b = new Uint8Array(await hit.arrayBuffer()); onBytes(m.size); return b; } } catch (e) { cache = null; }
-  const r = await fetch(m.url);
-  if (!r.ok) throw new Error('model ' + r.status);
-  const total = +r.headers.get('content-length') || m.size, buf = new Uint8Array(total);
-  let got = 0; const rd = r.body.getReader(), extra = [];
-  for (;;) {
-    const { done, value } = await rd.read(); if (done) break;
-    if (got + value.length <= total) buf.set(value, got); else extra.push(value);
-    got += value.length; onBytes(Math.min(got, m.size));
-  }
-  const out = extra.length ? (() => { const b = new Uint8Array(got); b.set(buf.subarray(0, total)); let o = total; extra.forEach(e => { b.set(e, o); o += e.length; }); return b; })() : buf.subarray(0, got);
+async function openCache() { try { return await caches.open('asd-ai-v2'); } catch (e) { return null; } }
+async function readStream(r, size, onBytes, base = 0) {
+  const chunks = []; let got = 0; const rd = r.body.getReader();
+  for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); got += value.length; onBytes(base + Math.min(got, size)); }
+  const out = new Uint8Array(got); let o = 0; chunks.forEach(c => { out.set(c, o); o += c.length; }); return out;
+}
+async function fetchModel(m, onBytes) { // один файл (LaMa)
+  const cache = await openCache();
+  const hit = cache && await cache.match(m.url).catch(() => null);
+  if (hit) { onBytes(m.size); return new Uint8Array(await hit.arrayBuffer()); }
+  const r = await fetch(m.url); if (!r.ok) throw new Error('model ' + r.status);
+  const out = await readStream(r, m.size, onBytes);
   if (cache) cache.put(m.url, new Response(out.slice())).catch(() => {});
-  onBytes(m.size);
-  return out;
+  onBytes(m.size); return out;
+}
+async function fetchParts(m, onBytes) { // модель из частей (≤ 18 МБ) + проверка SHA-256
+  const man = await fetch(m.base + 'manifest.json').then(r => { if (!r.ok) throw new Error('manifest ' + r.status); return r.json(); });
+  m.size = man.size;
+  const key = m.base + man.sha256, cache = await openCache();
+  const hit = cache && await cache.match(key).catch(() => null);
+  if (hit) { onBytes(m.size); return new Uint8Array(await hit.arrayBuffer()); }
+  const out = new Uint8Array(man.size); let off = 0;
+  for (const p of man.parts) {
+    const r = await fetch(m.base + p); if (!r.ok) throw new Error('part ' + r.status);
+    const b = await readStream(r, man.size - off, onBytes, off); out.set(b, off); off += b.length;
+  }
+  if (off !== man.size) throw new Error('model size');
+  try {
+    const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', out))].map(x => x.toString(16).padStart(2, '0')).join('');
+    if (h !== man.sha256) throw new Error('model checksum');
+  } catch (e) { if (e.message === 'model checksum') throw e; }
+  if (cache) cache.put(key, new Response(out.slice())).catch(() => {});
+  onBytes(m.size); return out;
 }
 /** Загружает обе модели; onProgress(0..1). */
 export function loadModels(onProgress = () => {}) {
   const got = { s: 0, l: 0 }, tick = () => onProgress((got.s + got.l) / (SEG.size + LAMA.size));
   const mk = (m, key) => getOrt().then(async ort => {
-    const bytes = await fetchModel(m, n => { got[key] = n; tick(); });
+    const bytes = await (m.base ? fetchParts : fetchModel)(m, n => { got[key] = n; tick(); });
     return ort.InferenceSession.create(bytes, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
   });
   if (!segP) segP = mk(SEG, 's').catch(e => { segP = null; throw e; }); else got.s = SEG.size;
