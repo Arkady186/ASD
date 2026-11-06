@@ -1,0 +1,26 @@
+name: build segmentation model
+on:
+  push:
+    branches: [models]
+    paths: ['tools/export_seg.py', '.github/workflows/build-seg-model.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install --quiet torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install --quiet "transformers==4.44.2" "onnx==1.16.2" "onnxruntime==1.19.2" numpy==1.26.4
+      - run: python tools/export_seg.py
+      - name: commit model parts
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add seg/
+          git commit -m "Модель сегментации: UperNet-ConvNeXt-Tiny ADE20K (MIT), int8, части по 18 МБ"
+          git push
