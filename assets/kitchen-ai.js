@@ -11,7 +11,7 @@ export const MODELS_MB = Math.round((SEG.size + LAMA.size) / 1e6);
 
 /* классы ADE20K */
 const ID = { curtain: 18, blind: 63, wall: 0, floor: 3, windowpane: 8, cabinet: 10, plant: 17, shelf: 24, wardrobe: 35, box: 41, chest: 44, counter: 45, sink: 47, fridge: 50, flower: 66, countertop: 70, stove: 71, island: 73, towel: 81, tv: 89, bottle: 98, buffet: 99, washer: 107, basket: 112, oven: 118, microwave: 124, pot: 125, dishwasher: 129, hood: 133, vase: 135, tray: 137, plate: 142, glass: 147 };
-const KITCHEN = ['cabinet', 'chest', 'counter', 'sink', 'fridge', 'countertop', 'stove', 'island', 'buffet', 'washer', 'oven', 'microwave', 'dishwasher', 'hood', 'shelf', 'wardrobe'].map(k => ID[k]);
+const KITCHEN = ['cabinet', 'chest', 'counter', 'sink', 'countertop', 'stove', 'island', 'buffet', 'washer', 'oven', 'microwave', 'dishwasher', 'hood', 'shelf', 'wardrobe'].map(k => ID[k]);
 const CLUTTER = ['bottle', 'pot', 'vase', 'plate', 'tray', 'glass', 'basket', 'box', 'towel', 'flower', 'plant', 'tv'].map(k => ID[k]);
 const LOWER = ['cabinet', 'chest', 'counter', 'countertop', 'sink', 'stove', 'island', 'oven', 'dishwasher', 'washer', 'buffet'].map(k => ID[k]);
 const TOP = ['countertop', 'counter', 'sink', 'stove'].map(k => ID[k]);
@@ -69,7 +69,7 @@ async function segment(src) {
   const out = await sess.run({ pixel_values: new ort.Tensor('float32', x, [1, 3, S, S]) });
   const L = out.logits.data, M = G * G;
   // вероятности групп классов на сетке 128×128
-  const grp = { K: new Float32Array(M), C: new Float32Array(M), L: new Float32Array(M), T: new Float32Array(M), W: new Float32Array(M), cab: new Float32Array(M), isl: new Float32Array(M), sink: new Float32Array(M), stove: new Float32Array(M) };
+  const grp = { K: new Float32Array(M), C: new Float32Array(M), L: new Float32Array(M), T: new Float32Array(M), W: new Float32Array(M), cab: new Float32Array(M), isl: new Float32Array(M), fr: new Float32Array(M), sink: new Float32Array(M), stove: new Float32Array(M) };
   const isK = new Uint8Array(NC), isC = new Uint8Array(NC), isL = new Uint8Array(NC), isT = new Uint8Array(NC);
   KITCHEN.forEach(i => isK[i] = 1); CLUTTER.forEach(i => isC[i] = 1); LOWER.forEach(i => isL[i] = 1); TOP.forEach(i => isT[i] = 1);
   for (let p = 0; p < M; p++) {
@@ -80,6 +80,7 @@ async function segment(src) {
     grp.W[p] = (Math.exp(L[ID.windowpane * M + p] - mx) + Math.exp(L[ID.curtain * M + p] - mx) + Math.exp(L[ID.blind * M + p] - mx)) / s;
     grp.cab[p] = Math.exp(L[ID.cabinet * M + p] - mx) / s;
     grp.isl[p] = Math.exp(L[ID.island * M + p] - mx) / s;
+    grp.fr[p] = Math.exp(L[ID.fridge * M + p] - mx) / s;
     grp.sink[p] = Math.exp(L[ID.sink * M + p] - mx) / s;
     grp.stove[p] = (Math.exp(L[ID.stove * M + p] - mx) + Math.exp(L[ID.oven * M + p] - mx)) / s;
   }
@@ -145,6 +146,7 @@ export async function analyze(img) {
   const R = Math.round(Math.max(W, H) * 0.03);
   m = erode(dilate(m, W, H, R), W, H, R);
   m = dilate(fillHoles(m, W, H), W, H, Math.round(Math.max(W, H) * 0.014));
+  const FR = erode(raster(g.fr, W, H, 0.5), W, H, 2); for (let i = 0; i < W * H; i++) if (FR[i]) m[i] = 0;
 
   // колонки нижнего ряда: верх столешницы (у стены), передний край, линия пола
   const pL = sampler(g.L, W, H), pT = sampler(g.T, W, H), step = Math.max(1, Math.round(W / 200)), cols = [];
