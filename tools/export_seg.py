@@ -21,10 +21,16 @@ class StaticAdaptiveAvgPool(torch.nn.Module):
             rows.append(torch.cat(cols, dim=3))
         return torch.cat(rows, dim=2)
 
-def patch(mod):
-    for name, ch in mod.named_children():
-        if isinstance(ch, torch.nn.AdaptiveAvgPool2d): setattr(mod, name, StaticAdaptiveAvgPool(ch.output_size))
-        else: patch(ch)
+def patch(root):
+    n = 0
+    for mod in list(root.modules()):
+        for name, ch in list(mod.named_children()):
+            if isinstance(ch, torch.nn.AdaptiveAvgPool2d): setattr(mod, name, StaticAdaptiveAvgPool(ch.output_size)); n += 1
+        for k, v in list(vars(mod).items()):  # слои, хранящиеся ещё и в обычных списках (UperNet PPM: self.layers)
+            if isinstance(v, list):
+                for i, it in enumerate(v):
+                    if isinstance(it, torch.nn.AdaptiveAvgPool2d): v[i] = StaticAdaptiveAvgPool(it.output_size); n += 1
+    print('patched pools:', n)
 
 class Head(torch.nn.Module):
     def __init__(s, m): super().__init__(); s.m = m
