@@ -56,7 +56,7 @@ export function loadModels(onProgress = () => {}) {
   tick();
   return Promise.all([segP, lamaP]);
 }
-const yieldUI = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 30)));
+const yieldUI = () => new Promise(r => { let done = false; const go = () => { if (!done) { done = true; setTimeout(r, 30); } }; requestAnimationFrame(go); setTimeout(go, 120); });
 
 /* ---------- сегментация ---------- */
 function canvasOf(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d', { willReadFrequently: true })]; }
@@ -205,7 +205,10 @@ export async function analyze(img) {
     const ppm = x => (floor(x) - front(x)) / 0.86, edge = x => 0.04 * ppm(x);
     const L = Math.min(8, Math.max(0.6, len3d(xa, floor(xa) - front(xa), xb, floor(xb) - front(xb), 0.86)));
     const seg = { len: L, lower: [[xa, front(xa) - edge(xa)], [xb, front(xb) - edge(xb)], [xb, floor(xb)], [xa, floor(xa)]], top: null, uppers: [] };
-    if (front(xa) - edge(xa) - back(xa) > 2 && front(xb) - edge(xb) - back(xb) > 2) seg.top = [[xa, back(xa)], [xb, back(xb)], [xb, front(xb) - edge(xb)], [xa, front(xa) - edge(xa)]];
+    // верх столешницы + пристенный бортик 4 см (закрывает стык со стеной)
+    const up = x => back(x) - 0.045 * ppm(x);
+    seg.top = [[xa, up(xa)], [xb, up(xb)], [xb, front(xb) - edge(xb)], [xa, front(xa) - edge(xa)]];
+    seg.topDepth = Math.max(0.02, Math.min(0.6, ((front(xa) - edge(xa) - back(xa)) / ppm(xa) + (front(xb) - edge(xb) - back(xb)) / ppm(xb)) / 2 * 1.6));
     // где стояли мойка и плита — туда же ставим новые (доля длины)
     const u = x => (x == null || x < xa || x > xb) ? null : (x - xa) / (xb - xa);
     seg.sinkU = u(sinkX); seg.hobU = u(stoveX);
