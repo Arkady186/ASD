@@ -69,7 +69,7 @@ async function segment(src) {
   const out = await sess.run({ pixel_values: new ort.Tensor('float32', x, [1, 3, S, S]) });
   const L = out.logits.data, M = G * G;
   // вероятности групп классов на сетке 128×128
-  const grp = { K: new Float32Array(M), C: new Float32Array(M), L: new Float32Array(M), T: new Float32Array(M), W: new Float32Array(M), cab: new Float32Array(M), sink: new Float32Array(M), stove: new Float32Array(M) };
+  const grp = { K: new Float32Array(M), C: new Float32Array(M), L: new Float32Array(M), T: new Float32Array(M), W: new Float32Array(M), cab: new Float32Array(M), isl: new Float32Array(M), sink: new Float32Array(M), stove: new Float32Array(M) };
   const isK = new Uint8Array(NC), isC = new Uint8Array(NC), isL = new Uint8Array(NC), isT = new Uint8Array(NC);
   KITCHEN.forEach(i => isK[i] = 1); CLUTTER.forEach(i => isC[i] = 1); LOWER.forEach(i => isL[i] = 1); TOP.forEach(i => isT[i] = 1);
   for (let p = 0; p < M; p++) {
@@ -79,6 +79,7 @@ async function segment(src) {
     grp.K[p] = k / s; grp.C[p] = cl / s; grp.L[p] = lo / s; grp.T[p] = t / s;
     grp.W[p] = (Math.exp(L[ID.windowpane * M + p] - mx) + Math.exp(L[ID.curtain * M + p] - mx) + Math.exp(L[ID.blind * M + p] - mx)) / s;
     grp.cab[p] = Math.exp(L[ID.cabinet * M + p] - mx) / s;
+    grp.isl[p] = Math.exp(L[ID.island * M + p] - mx) / s;
     grp.sink[p] = Math.exp(L[ID.sink * M + p] - mx) / s;
     grp.stove[p] = (Math.exp(L[ID.stove * M + p] - mx) + Math.exp(L[ID.oven * M + p] - mx)) / s;
   }
@@ -210,7 +211,7 @@ export async function analyze(img) {
     const L = Math.min(8, Math.max(0.6, len3d(xa, floor(xa) - front(xa), xb, floor(xb) - front(xb), 0.86)));
     const seg = { len: L, lower: [[xa, front(xa) - edge(xa)], [xb, front(xb) - edge(xb)], [xb, floor(xb)], [xa, floor(xa)]], top: null, uppers: [] };
     // верх столешницы + пристенный бортик 4 см (закрывает стык со стеной)
-    const up = x => back(x) - 0.045 * ppm(x);
+    const up = x => back(x) - 0.07 * ppm(x);
     seg.top = [[xa, up(xa)], [xb, up(xb)], [xb, front(xb) - edge(xb)], [xa, front(xa) - edge(xa)]];
     seg.topDepth = Math.max(0.02, Math.min(0.6, ((front(xa) - edge(xa) - back(xa)) / ppm(xa) + (front(xb) - edge(xb) - back(xb)) / ppm(xb)) / 2 * 1.6));
     // где стояли мойка и плита — туда же ставим новые (доля длины)
@@ -237,7 +238,9 @@ export async function analyze(img) {
   const qa = qg.getImageData(0, 0, W, H).data; // нижний ряд
   out.forEach(sg => sg.uppers.forEach(u => poly(u.q)));
   const qall = qg.getImageData(0, 0, W, H).data;
-  let nM = 0, unc = 0; for (let i = 0; i < W * H; i += 3) if (m[i]) { nM++; if (qall[i * 4] < 128) unc++; }
+  const pIsl = sampler(g.isl, W, H);
+  let nM = 0, unc = 0, nK = 0, isl = 0;
+  for (let i = 0; i < W * H; i += 3) { if (m[i]) { nM++; if (qall[i * 4] < 128) unc++; } if (K[i]) { nK++; if (pIsl(i % W, (i / W) | 0) > 0.4) isl++; } }
   const qd = qa, near2 = dilate(m, W, H, Math.round(Math.max(W, H) * 0.02));
   let nL = 0, cov = 0, nQ = 0, spill = 0;
   for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
@@ -246,9 +249,9 @@ export async function analyze(img) {
     if (inQ) { nQ++; if (!near2[i]) spill++; }
   }
   const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
-  const conf = { uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
+  const conf = { island: nK ? isl / nK : 0, uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
     ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))) };
-  const sure = conf.coverage > 0.75 && conf.uncovered < 0.3 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 3.6 && out.length <= 3;
+  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 3.6 && out.length <= 3;
   if (!sure && !self.__asdForce) return { ok: false, reason: 'complex', conf, mask: m, W, H };
   const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
   const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];

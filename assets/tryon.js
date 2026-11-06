@@ -89,7 +89,7 @@ function topSurface(o) {
   const len = o.len, W = 2048, ppm = W / len, H = Math.max(48, Math.round(0.6 * ppm)), [c, g] = cv(W, H);
   const ts = topSource(o.top), tile = Math.max(64, 0.9 * ppm);
   for (let x = 0; x < W; x += tile) for (let y = 0; y < H; y += tile) g.drawImage(ts, x, y, tile, tile);
-  const d = o.depth || 0.6, ub = Math.round(H * clamp(0.045 / (0.045 + d), 0.04, 0.6)); // бортик у стены
+  const d = o.depth || 0.6, ub = Math.round(H * clamp(0.07 / (0.07 + d), 0.05, 0.65)); // бортик у стены
   if (o.depth != null) {
     const bg = g.createLinearGradient(0, 0, 0, ub); bg.addColorStop(0, 'rgba(0,0,0,.06)'); bg.addColorStop(1, 'rgba(0,0,0,.22)');
     g.fillStyle = bg; g.fillRect(0, 0, W, ub); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(0, 0, W, Math.max(1, ub * 0.12));
