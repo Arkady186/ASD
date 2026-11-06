@@ -272,8 +272,8 @@ export async function analyze(img) {
   const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
   const conf = { island: nK ? isl / nK : 0, uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
     ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))), topR: Math.max(...out.map(sg => sg.topR)) };
-  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && conf.topR < 0.5 && out.length <= 3;
-  if (!sure && !self.__asdForce) return { ok: false, reason: 'complex', conf, mask: m, W, H };
+  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && conf.topR < 0.5 && out.length <= 2;
+  if (!sure) return { ok: false, reason: 'complex', conf, mask: m, W, H };
   const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
   const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];
   for (let i = 0; i < W * H; i += 2) if (ring[i] && !m[i]) lums.push(0.2126 * (rd[i * 4] / 255) ** 2.2 + 0.7152 * (rd[i * 4 + 1] / 255) ** 2.2 + 0.0722 * (rd[i * 4 + 2] / 255) ** 2.2);
