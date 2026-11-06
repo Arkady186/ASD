@@ -231,10 +231,21 @@ export async function analyze(img) {
     const L = Math.min(8, Math.max(0.6, len3d(xa, floor(xa) - front(xa), xb, floor(xb) - front(xb), 0.86)));
     const topR = Math.max((front(xa) - back(xa)) / (floor(xa) - front(xa)), (front(xb) - back(xb)) / (floor(xb) - front(xb)));
     const seg = { topR, len: L, lower: [[xa, front(xa) - edge(xa)], [xb, front(xb) - edge(xb)], [xb, floor(xb)], [xa, floor(xa)]], top: null, uppers: [] };
-    // верх столешницы + пристенный бортик 4 см (закрывает стык со стеной)
-    const up = x => back(x) - 0.07 * ppm(x);
+    // верх столешницы + пристенный бортик: поднимаем его до верхней границы стёртой области
+    // (стирающая сеть оставляет там тёмный фон), но не выше 15 см
+    const mt = [];
+    for (let x = xa + 2; x < xb - 2; x += Math.max(2, (xb - xa) / 40)) {
+      let y = Math.round(front(x)); const xi = Math.round(x);
+      if (!m[y * W + xi]) continue;
+      while (y > 0 && m[(y - 1) * W + xi]) y--;
+      mt.push([x, y]);
+    }
+    const mtop = mt.length >= 6 ? fit(mt) : null;
+    const up = x => { const b = back(x), p = ppm(x), lo = b - 0.07 * p, hi = b - 0.15 * p; return mtop ? Math.min(lo, Math.max(hi, mtop.at(x) - 2)) : lo; };
     seg.top = [[xa, up(xa)], [xb, up(xb)], [xb, front(xb) - edge(xb)], [xa, front(xa) - edge(xa)]];
     seg.topDepth = Math.max(0.02, Math.min(0.6, ((front(xa) - edge(xa) - back(xa)) / ppm(xa) + (front(xb) - edge(xb) - back(xb)) / ppm(xb)) / 2 * 1.6));
+    const upFrac = x => (back(x) - up(x)) / Math.max(1, front(x) - edge(x) - up(x));
+    seg.upFrac = Math.min(0.85, Math.max(0.05, (upFrac(xa) + upFrac(xb)) / 2));
     // где стояли мойка и плита — туда же ставим новые (доля длины)
     const u = x => (x == null || x < xa || x > xb) ? null : (x - xa) / (xb - xa);
     seg.sinkU = u(sinkX); seg.hobU = u(stoveX);

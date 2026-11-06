@@ -89,7 +89,7 @@ function topSurface(o) {
   const len = o.len, W = 2048, ppm = W / len, H = Math.max(48, Math.round(0.6 * ppm)), [c, g] = cv(W, H);
   const ts = topSource(o.top), tile = Math.max(64, 0.9 * ppm);
   for (let x = 0; x < W; x += tile) for (let y = 0; y < H; y += tile) g.drawImage(ts, x, y, tile, tile);
-  const d = o.depth || 0.6, ub = Math.round(H * clamp(0.07 / (0.07 + d), 0.05, 0.65)); // бортик у стены
+  const ub = Math.round(H * (o.upFrac != null ? o.upFrac : clamp(0.07 / (0.07 + (o.depth || 0.6)), 0.05, 0.65))); // бортик у стены
   if (o.depth != null) {
     const bg = g.createLinearGradient(0, 0, 0, ub); bg.addColorStop(0, 'rgba(0,0,0,.06)'); bg.addColorStop(1, 'rgba(0,0,0,.22)');
     g.fillStyle = bg; g.fillRect(0, 0, W, ub); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(0, 0, W, Math.max(1, ub * 0.12));
@@ -323,7 +323,7 @@ function build() {
       if (tok !== S.run) return;
       step('build'); await paint();
       const k = S.W / geo.W, sq = q => q.map(([x, y]) => [x * k, y * k]);
-      S.geo = { ring: geo.ringLum, segs: geo.segs.map(s => ({ len: s.len, sinkU: s.sinkU, hobU: s.hobU, topDepth: s.topDepth, top: s.top && sq(s.top), lower: sq(s.lower), uppers: s.uppers.map(u => ({ len: u.len, q: sq(u.q) })) })) };
+      S.geo = { ring: geo.ringLum, segs: geo.segs.map(s => ({ len: s.len, sinkU: s.sinkU, hobU: s.hobU, topDepth: s.topDepth, upFrac: s.upFrac, top: s.top && sq(s.top), lower: sq(s.lower), uppers: s.uppers.map(u => ({ len: u.len, q: sq(u.q) })) })) };
       S.on.upper = S.geo.segs.some(s => s.uppers.length);
       setClean(clean); S.mode = 'auto'; setMode(); rebuild();
       ai.hidden = true; S.edit = false; showCmp(true);
@@ -410,7 +410,7 @@ function build() {
     const o = [];
     if (S.mode === 'auto' && S.geo) {
       S.geo.segs.forEach(s => {
-        if (s.top) o.push({ kind: 'top', q: s.top, len: s.len, sinkU: s.sinkU, hobU: s.hobU, depth: s.topDepth });
+        if (s.top) o.push({ kind: 'top', q: s.top, len: s.len, sinkU: s.sinkU, hobU: s.hobU, depth: s.topDepth, upFrac: s.upFrac });
         o.push({ kind: 'lower', q: s.lower, len: s.len });
         if (S.on.upper) s.uppers.forEach(u => o.push({ kind: 'upper', q: u.q, len: u.len }));
       });
@@ -422,9 +422,9 @@ function build() {
   }
   const texCache = new Map();
   function texFor(sp) {
-    const key = [sp.kind, sp.len.toFixed(2), S.facade, S.color, S.top, S.handles, sp.sinkU, sp.hobU, sp.depth].join('|');
+    const key = [sp.kind, sp.len.toFixed(2), S.facade, S.color, S.top, S.handles, sp.sinkU, sp.hobU, sp.depth, sp.upFrac].join('|');
     if (texCache.has(key)) return texCache.get(key);
-    const o = { facade: S.facade, color: S.color, top: S.top, handles: S.handles, len: sp.len, sinkU: sp.sinkU, hobU: sp.hobU, depth: sp.depth };
+    const o = { facade: S.facade, color: S.color, top: S.top, handles: S.handles, len: sp.len, sinkU: sp.sinkU, hobU: sp.hobU, depth: sp.depth, upFrac: sp.upFrac };
     const t = new THREE.CanvasTexture(sp.kind === 'top' ? topSurface(o) : elevation(sp.kind, o));
     t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; t.minFilter = THREE.LinearMipmapLinearFilter;
     if (texCache.size > 24) { const [k0, t0] = texCache.entries().next().value; t0.dispose(); texCache.delete(k0); }
