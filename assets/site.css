@@ -418,3 +418,28 @@ body.is-moving .btn-bar { opacity: 0; pointer-events: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
   .spot .pulse { display: none; }
 }
+
+/* ---------- 3D-модель квартала ---------- */
+.k3d { position: absolute; inset: 0; z-index: 2; display: block; opacity: 0; transition: opacity 1.1s var(--ease-out); touch-action: pan-y; cursor: grab; }
+.view-kvartal.k3d-on .k3d { opacity: 1; }
+.view-kvartal.has-3d.k3d-on .plate .map { opacity: 0; pointer-events: none; }
+.k3d-tip {
+  position: absolute; z-index: 4; pointer-events: none; display: grid; gap: 2px;
+  padding: 10px 14px; background: rgba(28, 28, 28, .88); color: var(--ink); border-radius: 10px;
+  font-size: var(--step-small); line-height: 1.35; max-width: 240px;
+}
+.k3d-tip b { font-size: 1rem; font-weight: 600; }
+.k3d-tip span { color: var(--muted); }
+.k3d-hint {
+  position: absolute; z-index: 3; left: 50%; top: calc(var(--bar-h) + 16px); transform: translateX(-50%);
+  padding: 8px 16px; border-radius: 999px; background: rgba(28, 28, 28, .6); color: var(--ink);
+  font-size: var(--step-small); pointer-events: none; white-space: nowrap; opacity: 0; transition: opacity .6s .8s;
+}
+.view-kvartal.k3d-on .k3d-hint { opacity: 1; }
+.view-kvartal.has-3d.k3d-on .pop { left: calc(50% - 170px) !important; top: calc(var(--bar-h) + 64px) !important; }
+@media (max-width: 899px) {
+  .view-kvartal.has-3d.k3d-on .media { overflow: hidden; }
+  .view-kvartal.has-3d.k3d-on .plate { display: none; }
+  .k3d-hint { top: auto; bottom: 12px; left: 16px; right: 16px; transform: none; white-space: normal; text-align: center; }
+}
+.k3d-tip[hidden] { display: none; }
