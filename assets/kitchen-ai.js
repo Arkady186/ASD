@@ -10,7 +10,7 @@ const LAMA = { url: 'https://huggingface.co/opencv/inpainting_lama/resolve/main/
 export const MODELS_MB = Math.round((SEG.size + LAMA.size) / 1e6);
 
 /* классы ADE20K */
-const ID = { wall: 0, floor: 3, windowpane: 8, cabinet: 10, plant: 17, shelf: 24, wardrobe: 35, box: 41, chest: 44, counter: 45, sink: 47, fridge: 50, flower: 66, countertop: 70, stove: 71, island: 73, towel: 81, tv: 89, bottle: 98, buffet: 99, washer: 107, basket: 112, oven: 118, microwave: 124, pot: 125, dishwasher: 129, hood: 133, vase: 135, tray: 137, plate: 142, glass: 147 };
+const ID = { curtain: 18, blind: 63, wall: 0, floor: 3, windowpane: 8, cabinet: 10, plant: 17, shelf: 24, wardrobe: 35, box: 41, chest: 44, counter: 45, sink: 47, fridge: 50, flower: 66, countertop: 70, stove: 71, island: 73, towel: 81, tv: 89, bottle: 98, buffet: 99, washer: 107, basket: 112, oven: 118, microwave: 124, pot: 125, dishwasher: 129, hood: 133, vase: 135, tray: 137, plate: 142, glass: 147 };
 const KITCHEN = ['cabinet', 'chest', 'counter', 'sink', 'fridge', 'countertop', 'stove', 'island', 'buffet', 'washer', 'oven', 'microwave', 'dishwasher', 'hood', 'shelf', 'wardrobe'].map(k => ID[k]);
 const CLUTTER = ['bottle', 'pot', 'vase', 'plate', 'tray', 'glass', 'basket', 'box', 'towel', 'flower', 'plant', 'tv'].map(k => ID[k]);
 const LOWER = ['cabinet', 'chest', 'counter', 'countertop', 'sink', 'stove', 'island', 'oven', 'dishwasher', 'washer', 'buffet'].map(k => ID[k]);
@@ -77,7 +77,7 @@ async function segment(src) {
     let s = 0, k = 0, cl = 0, lo = 0, t = 0;
     for (let c = 0; c < NC; c++) { const e = Math.exp(L[c * M + p] - mx); s += e; if (isK[c]) k += e; if (isC[c]) cl += e; if (isL[c]) lo += e; if (isT[c]) t += e; }
     grp.K[p] = k / s; grp.C[p] = cl / s; grp.L[p] = lo / s; grp.T[p] = t / s;
-    grp.W[p] = Math.exp(L[ID.windowpane * M + p] - mx) / s;
+    grp.W[p] = (Math.exp(L[ID.windowpane * M + p] - mx) + Math.exp(L[ID.curtain * M + p] - mx) + Math.exp(L[ID.blind * M + p] - mx)) / s;
     grp.cab[p] = Math.exp(L[ID.cabinet * M + p] - mx) / s;
     grp.sink[p] = Math.exp(L[ID.sink * M + p] - mx) / s;
     grp.stove[p] = (Math.exp(L[ID.stove * M + p] - mx) + Math.exp(L[ID.oven * M + p] - mx)) / s;
@@ -214,15 +214,22 @@ export async function analyze(img) {
     const stepX = Math.max(2, (xb - xa) / 60), free = [];
     for (let x = xa + stepX / 2; x < xb; x += stepX) {
       let w = 0, n = 0;
-      for (let y = Math.max(0, ut(x)); y < Math.min(H, ub(x)); y += 3) { w += pW(x, y) > 0.5 ? 1 : 0; n++; upperProbe++; if (pCab(x, y) > 0.5) upperArea++; }
-      free.push([x, n === 0 || w / n < 0.12]);
+      for (let y = Math.max(0, ut(x)); y < Math.min(H, ub(x)); y += 3) { w += pW(x, y) > 0.3 ? 1 : 0; n++; upperProbe++; if (pCab(x, y) > 0.5) upperArea++; }
+      free.push([x, n === 0 || w / n < 0.05]);
     }
+    const pad = Math.max(1, Math.round(W * 0.03 / stepX)), blocked = free.map(f => !f[1]);
+    free.forEach((f, i) => { for (let j = Math.max(0, i - pad); j <= Math.min(free.length - 1, i + pad); j++) if (blocked[j]) f[1] = false; });
     let s = null;
     const flush = xe => { if (s != null && xe - s > Math.max(W * 0.06, (xb - xa) * 0.1)) seg.uppers.push({ q: [[s, ut(s)], [xe, ut(xe)], [xe, ub(xe)], [s, ub(s)]], len: Math.min(8, Math.max(0.4, len3d(s, 0.72 * pw(s), xe, 0.72 * pw(xe), 0.72))) }); s = null; };
     free.forEach(([x, ok], i) => { if (ok && s == null) s = Math.max(xa, x - stepX / 2); if (!ok) flush(x - stepX / 2); if (i === free.length - 1) flush(xb); });
     return seg;
   });
-  return { ok: true, mask: m, W, H, segs: out, hadUpper: upperProbe > 0 && upperArea / upperProbe > 0.25 };
+  const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
+  const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];
+  for (let i = 0; i < W * H; i += 2) if (ring[i] && !m[i]) lums.push(0.2126 * (rd[i * 4] / 255) ** 2.2 + 0.7152 * (rd[i * 4 + 1] / 255) ** 2.2 + 0.0722 * (rd[i * 4 + 2] / 255) ** 2.2);
+  lums.sort((a, b) => a - b);
+  const ringLum = lums.length ? lums[Math.floor(lums.length * 0.55)] : 0.3;
+  return { ok: true, mask: m, W, H, segs: out, ringLum, hadUpper: upperProbe > 0 && upperArea / upperProbe > 0.25 };
 }
 
 /* ---------- стирание старой кухни (LaMa) ---------- */

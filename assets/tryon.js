@@ -314,7 +314,7 @@ function build() {
       if (tok !== S.run) return;
       step('build'); await paint();
       const k = S.W / geo.W, sq = q => q.map(([x, y]) => [x * k, y * k]);
-      S.geo = { segs: geo.segs.map(s => ({ len: s.len, sinkU: s.sinkU, hobU: s.hobU, top: s.top && sq(s.top), lower: sq(s.lower), uppers: s.uppers.map(u => ({ len: u.len, q: sq(u.q) })) })) };
+      S.geo = { ring: geo.ringLum, segs: geo.segs.map(s => ({ len: s.len, sinkU: s.sinkU, hobU: s.hobU, top: s.top && sq(s.top), lower: sq(s.lower), uppers: s.uppers.map(u => ({ len: u.len, q: sq(u.q) })) })) };
       S.on.upper = S.geo.segs.some(s => s.uppers.length);
       setClean(clean); S.mode = 'auto'; setMode(); rebuild();
       ai.hidden = true; S.edit = false; showCmp(true);
@@ -375,7 +375,7 @@ function build() {
   /* ---------- освещение: сетка медиан яркости снимка (без старой кухни) ---------- */
   const GX = 10, GY = 5, lightCache = {};
   function lightMap(q) {
-    const key = q.map(p => p.map(Math.round).join()).join();
+    const key = S.mode + q.map(p => p.map(Math.round).join()).join();
     if (lightCache[key]) return lightCache[key];
     if (!S.cleanData) S.cleanData = S.cleanCtx.getImageData(0, 0, S.W, S.H).data;
     const H = homography(q), img = S.cleanData, data = new Float32Array(GX * GY * 4), all = [];
@@ -387,6 +387,10 @@ function build() {
       data.set([med, med, med, 1], (gy * GX + gx) * 4); all.push(med);
     }
     all.sort((m, n) => m - n);
+    if (S.mode === 'auto' && S.geo) { // дорисованный фон бывает темнее реальной стены — берём только мягкий перепад
+      const ring = S.geo.ring, k = clamp(ring / 0.42, 0.45, 1.6), m0 = Math.max(0.02, all[all.length >> 1]);
+      for (let i = 0; i < GX * GY; i++) { const v = clamp(data[i * 4] / m0, 0.8, 1.2) * k * 0.42; data.set([v, v, v, 1], i * 4); }
+    }
     const t = new THREE.DataTexture(data, GX, GY, THREE.RGBAFormat, THREE.FloatType);
     t.magFilter = t.minFilter = THREE.LinearFilter; t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.needsUpdate = true;
     return (lightCache[key] = { tex: t, med: Math.max(0.02, all[all.length >> 1]) });
