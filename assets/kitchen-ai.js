@@ -248,7 +248,7 @@ export async function analyze(img) {
   const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
   const conf = { uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
     ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))) };
-  const sure = conf.coverage > 0.6 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && out.length <= 3;
+  const sure = conf.coverage > 0.75 && conf.uncovered < 0.3 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 3.6 && out.length <= 3;
   if (!sure) return { ok: false, reason: 'complex', conf, mask: m, W, H };
   const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
   const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];
