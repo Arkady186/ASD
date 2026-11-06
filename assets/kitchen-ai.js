@@ -14,7 +14,7 @@ const ID = { curtain: 18, blind: 63, wall: 0, floor: 3, windowpane: 8, cabinet: 
 const KITCHEN = ['cabinet', 'chest', 'counter', 'sink', 'countertop', 'stove', 'island', 'buffet', 'washer', 'oven', 'microwave', 'dishwasher', 'hood', 'shelf', 'wardrobe'].map(k => ID[k]);
 const CLUTTER = ['bottle', 'pot', 'vase', 'plate', 'tray', 'glass', 'basket', 'box', 'towel', 'flower', 'plant', 'tv'].map(k => ID[k]);
 const LOWER = ['cabinet', 'chest', 'counter', 'countertop', 'sink', 'stove', 'island', 'oven', 'dishwasher', 'washer', 'buffet'].map(k => ID[k]);
-const TOP = ['countertop', 'counter', 'sink', 'stove'].map(k => ID[k]);
+const TOP = ['countertop', 'counter', 'sink'].map(k => ID[k]);
 const NC = 150, G = 128;
 
 /* ---------- загрузка ---------- */
@@ -254,7 +254,7 @@ export async function analyze(img) {
   const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
   const conf = { island: nK ? isl / nK : 0, uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
     ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))), topR: Math.max(...out.map(sg => sg.topR)) };
-  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && conf.topR < 0.75 && out.length <= 3;
+  const sure = conf.island < 0.06 && conf.coverage > 0.5 && conf.uncovered < 0.45 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && conf.topR < 0.5 && out.length <= 3;
   if (!sure && !self.__asdForce) return { ok: false, reason: 'complex', conf, mask: m, W, H };
   const [, rg] = canvasOf(W, H); rg.drawImage(img, 0, 0, W, H); const rd = rg.getImageData(0, 0, W, H).data;
   const ring = dilate(m, W, H, Math.round(Math.max(W, H) * 0.06)), lums = [];
