@@ -580,3 +580,33 @@ body.is-moving .btn-bar { opacity: 0; pointer-events: none; }
   .apt-note { display: none; }
   .view-kvartal.is-int .apt-info .apt-reset { display: none; }
 }
+
+/* этапы работы ASD в квартире */
+.apt-ov { position: absolute; inset: 0; z-index: 7; pointer-events: none; overflow: hidden; }
+.view-kvartal:not(.is-int) .apt-ov { display: none; }
+.apt-say { position: absolute; left: 0; top: 0; max-width: 240px; padding: 10px 14px; border-radius: 14px 14px 14px 4px; background: #fff; color: #1c1c1c;
+  font-size: 14px; line-height: 1.35; box-shadow: 0 8px 24px rgba(0, 0, 0, .18); opacity: 0; transition: opacity .3s; }
+.apt-say.is-asd { background: var(--accent); color: var(--accent-ink); border-radius: 14px 14px 4px 14px; }
+.apt-notes { position: absolute; right: var(--m); top: calc(var(--bar-h) + 14px); width: 270px; padding: 16px 18px 12px; background: #FBF8F2; color: #2a2724;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .25); transform: rotate(1.2deg); opacity: 0; transition: opacity .4s;
+  background-image: repeating-linear-gradient(#FBF8F2 0 27px, #E3DCD0 27px 28px); }
+.apt-notes b { display: block; font-size: 15px; margin-bottom: 6px; }
+.apt-notes ul { margin: 0; padding: 0 0 0 18px; }
+.apt-notes li { font-size: 14px; line-height: 28px; font-family: 'Segoe Print', 'Comic Sans MS', cursive; color: #233A6E; animation: apt-write .6s ease both; }
+@keyframes apt-write { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.apt-steps { list-style: none; margin: 0 0 14px; padding: 0; display: flex; gap: 6px; }
+.apt-steps li { display: flex; align-items: center; gap: 6px; flex: 1; font-size: 11px; color: var(--muted); }
+.apt-steps li span { display: none; }
+.apt-steps i { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .3); font-style: normal; font-size: 12px; flex: none; }
+.apt-steps li::after { content: ""; flex: 1; height: 1px; background: rgba(255, 255, 255, .2); }
+.apt-steps li:last-child::after { display: none; }
+.apt-steps li.is-on i { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.apt-steps li.is-done i { background: rgba(143, 166, 142, .25); border-color: var(--accent); color: var(--ink); }
+.apt-wait { color: var(--accent) !important; }
+.apt-info .btn { border: 0; cursor: pointer; font: inherit; }
+@media (max-width: 899px) {
+  .apt-notes { right: 10px; top: auto; bottom: 10px; width: 210px; padding: 10px 12px 6px; }
+  .apt-notes li { font-size: 12.5px; line-height: 22px; }
+  .apt-say { max-width: 170px; font-size: 12.5px; }
+  .apt-info .apt-steps { margin-bottom: 8px; }
+}

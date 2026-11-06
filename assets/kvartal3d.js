@@ -761,7 +761,8 @@ function start() {
   let S = null;
   try { S = buildScene(); } catch (e) { console.warn('3D-генплан не запустился', e); return; }
   const { renderer, scene, cam, sun, sunDir, pickables, animate, floorHL, ringHL } = S;
-  const apt = createApartment(renderer, { lite: LITE, viewImage: 'assets/img/kvartal.webp' });
+  const aptOv = document.createElement('div'); aptOv.className = 'apt-ov';
+  const apt = createApartment(renderer, { lite: LITE, viewImage: 'assets/img/kvartal.webp', overlay: aptOv, onStage: () => aptUI() });
 
   // Слой 3D поверх фото: canvas + край «шторки» + интерфейс
   const wrap = document.createElement('div'); wrap.className = 'k3d'; wrap.hidden = true;
@@ -1141,23 +1142,35 @@ function start() {
   let dive = null, savedView = null, aptHouse = null, aptFloor = 1;
   const flash = document.createElement('div'); flash.className = 'k3d-flash'; wrap.appendChild(flash);
   const fade = (on, ms = 380) => new Promise(r => { flash.style.transitionDuration = ms + 'ms'; flash.classList.toggle('is-on', on); setTimeout(r, reduced.matches ? 0 : ms); });
-  const aui = document.createElement('div'); aui.className = 'apt-ui'; wrap.appendChild(aui);
+  const aui = document.createElement('div'); aui.className = 'apt-ui'; wrap.append(aptOv, aui);
+  const STEPS = [
+    ['Замер и пожелания', 'Приезжаем к вам, внимательно выслушиваем пожелания и снимаем точные размеры — так проект сразу получается точным.'],
+    ['Дизайн-проект', 'Готовим чертёж с размерами и подбираем материалы ещё до производства. Попробуйте сами: выберите фасады и столешницу.'],
+    ['Производство', 'Изготавливаем мебель точно под ваши размеры по утверждённому проекту.'],
+    ['Доставка, подъём и монтаж', 'Привозим, бережно поднимаем в квартиру, собираем и аккуратно устанавливаем.']
+  ];
   function aptUI() {
-    const F = apt.FACADES, s = apt.state, f = F.find(x => x.id === s.facade);
-    const built = apt.phase !== 'empty';
+    if (!aui) return;
+    const F = apt.FACADES, s = apt.state, f = F.find(x => x.id === s.facade), st = apt.stage;
+    const dots = `<ol class="apt-steps">${STEPS.map((x, i) => `<li class="${i + 1 < st || st === 5 ? 'is-done' : i + 1 === st ? 'is-on' : ''}"><i>${i + 1}</i><span>${x[0]}</span></li>`).join('')}</ol>`;
+    let info;
+    if (st === 0) info = `<p class="k3d-kick">Дом ${aptHouse ? aptHouse.no : ''} · ${aptFloor} этаж</p><h3>Квартира после сдачи дома</h3>
+      <p>Голые стены и бетонный пол — так квартиру получает новосёл. Посмотрите, как ASD проходит путь от замера до готовой кухни.</p>
+      <button type="button" class="btn apt-build">Собрать кухню</button>`;
+    else if (st <= 4) info = `${dots}<p class="k3d-kick">Этап ${st} из 4</p><h3>${STEPS[st - 1][0]}</h3><p>${STEPS[st - 1][1]}</p>
+      ${st < 4 ? `<button type="button" class="btn apt-next">${st === 3 ? 'Дальше: монтаж' : 'Дальше'} →</button>` : '<p class="apt-wait">Монтажники ASD устанавливают кухню…</p>'}`;
+    else info = `${dots}<p class="k3d-kick">Готово</p><h3>Кухня ASD в этой квартире</h3>
+      <p>Покрутите комнату и примерьте материалы — как в «Гиде по материалам» ASD.</p>
+      <button type="button" class="k3d-btn apt-reset">Посмотреть все этапы ещё раз</button>`;
+    const mats = st === 2 || st === 5;
     aui.innerHTML = `
       <div class="apt-top">
         <button type="button" class="k3d-btn apt-back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>В квартал</span></button>
         <a class="k3d-btn apt-cta" href="https://asd-mebel.ru/quiz.html" target="_blank" rel="noopener">Хочу такую кухню</a>
         <a class="k3d-btn apt-call" href="tel:+79185513330"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg><span>Позвонить в ASD</span></a>
       </div>
-      <div class="apt-info">
-        <p class="k3d-kick">Дом ${aptHouse ? aptHouse.no : ''} · ${aptFloor} этаж</p>
-        <h3>${built ? 'Кухня ASD в этой квартире' : 'Квартира после сдачи дома'}</h3>
-        <p>${built ? 'Покрутите комнату и примерьте материалы фасадов и столешницы — как в «Гиде по материалам» ASD.' : 'Голые стены и бетонный пол — так квартиру получает новосёл. Нажмите кнопку и посмотрите, как здесь встанет мебель.'}</p>
-        ${built ? '<button type="button" class="k3d-btn apt-reset">Показать пустую квартиру</button>' : '<button type="button" class="btn apt-build">Собрать мебель</button>'}
-      </div>
-      <div class="apt-mat"${built ? '' : ' hidden'}>
+      <div class="apt-info">${info}</div>
+      <div class="apt-mat"${mats ? '' : ' hidden'}>
         <div class="apt-row"><span class="apt-lab">Фасады</span>${F.map(x => `<button type="button" class="apt-chip${x.id === s.facade ? ' is-on' : ''}" data-f="${x.id}">${x.name}<small>${x.price}</small></button>`).join('')}</div>
         <div class="apt-row"><span class="apt-lab">Цвет</span>${f.colors.map((c, i) => `<button type="button" class="apt-sw${i === s.color ? ' is-on' : ''}" data-c="${i}" style="--c:${c[2]}" title="${c[0]}" aria-label="${c[0]}"></button>`).join('')}<span class="apt-cname">${f.colors[s.color][0]}</span></div>
         <div class="apt-row"><span class="apt-lab">Столешница</span>${apt.TOPS.map(x => `<button type="button" class="apt-chip${x.id === s.top ? ' is-on' : ''}" data-t="${x.id}">${x.name}</button>`).join('')}</div>
@@ -1167,8 +1180,9 @@ function start() {
   aui.addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.classList.contains('apt-back')) leaveApartment(false);
-    else if (b.classList.contains('apt-build')) { apt.build(); setTimeout(aptUI, 400); }
-    else if (b.classList.contains('apt-reset')) { apt.reset(); aptUI(); }
+    else if (b.classList.contains('apt-build')) apt.build();
+    else if (b.classList.contains('apt-next')) apt.next();
+    else if (b.classList.contains('apt-reset')) { apt.reset(); apt.build(); }
     else if (b.dataset.f) { apt.setFacade(b.dataset.f, 0); aptUI(); }
     else if (b.dataset.c) { apt.setFacade(apt.state.facade, +b.dataset.c); aptUI(); }
     else if (b.dataset.t) { apt.setTop(b.dataset.t); aptUI(); }

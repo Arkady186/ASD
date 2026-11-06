@@ -417,15 +417,138 @@ export function createApartment(renderer, opts = {}) {
   }
   setFacade('agt', 1); setTop('stone');
 
-  /* ---------- Сборка ---------- */
-  let phase = 'empty', tA = 0, finishK = 0;
-  const CONC = new THREE.Color('#FFFFFF'), PAINT = new THREE.Color('#FFFFFF');
-  function resetParts() {
-    parts.forEach(p => { p.obj.visible = false; p.obj.position.copy(p.home); p.obj.rotation.copy(p.rot); p.obj.scale.setScalar(1); });
-    finish.visible = false; floorWood.opacity = 0; wallMat.map = concreteT; wallMat.needsUpdate = true;
-    ceilMat.color.set('#FFFFFF'); lampLights.forEach(l => { l.intensity = 0; }); underLight.intensity = 0; fill.intensity = 0;
-    phase = 'empty'; tA = 0; finishK = 0;
+  /* ---------- 4 этапа работы ASD: замер → дизайн-проект → производство → монтаж ---------- */
+  kitchen.updateMatrixWorld(true);
+  const decor = new Set([dining, lamps, sofa, plant]);
+  const kParts = parts.filter(p => !decor.has(p.obj)), dParts = parts.filter(p => decor.has(p.obj));
+  const _b = new THREE.Box3(), _c = new V3();
+  parts.forEach(p => { p.obj.visible = true; });
+  kitchen.updateMatrixWorld(true);
+  // направление «выноса» модуля в комнату (для производства) и чертёж по рёбрам
+  const BLUE = new THREE.Color('#2F6FE4');
+  const bpMat = () => new THREE.LineBasicMaterial({ color: BLUE, transparent: true, opacity: 0, depthWrite: false });
+  const blueprint = new THREE.Group(); scene.add(blueprint);
+  kParts.forEach(p => {
+    _b.setFromObject(p.obj); _b.getCenter(_c);
+    const side = _c.x < -2.3 && _c.z > -1.6;
+    p.off = side ? new V3(0.7, 0.1, 0) : new V3(0, 0.1, 0.7);
+    const segs = [];
+    p.obj.traverse(o => {
+      if (!o.isMesh || o.material === led) return;
+      const e = new THREE.EdgesGeometry(o.geometry, 25); e.applyMatrix4(o.matrixWorld); segs.push(e);
+    });
+    if (segs.length) {
+      const pos = []; segs.forEach(e => pos.push(...e.attributes.position.array));
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      p.bp = new THREE.LineSegments(g, bpMat()); p.bp.renderOrder = 6; blueprint.add(p.bp);
+    }
+  });
+  parts.forEach(p => { p.obj.visible = false; });
+
+  // размерные линии с подписями
+  function label(text, color = '#C2410C') {
+    const [c, g] = cv(512, 128);
+    g.font = '600 58px Manrope, Arial, sans-serif'; const w = Math.min(500, g.measureText(text).width + 48);
+    g.fillStyle = 'rgba(255,255,255,.94)'; g.beginPath(); g.roundRect((512 - w) / 2, 22, w, 84, 42); g.fill();
+    g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 256, 66);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: T(c, { rep: false }), depthTest: false, transparent: true, opacity: 0 }));
+    sp.scale.set(0.9, 0.225, 1); sp.renderOrder = 9; return sp;
   }
+  function dim(a, b, text, color, tick = new V3(0, 0.06, 0)) {
+    const g = new THREE.Group(), A = new V3(...a), B = new V3(...b);
+    const pts = [A, B, A.clone().add(tick), A.clone().sub(tick), B.clone().add(tick), B.clone().sub(tick)];
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const ln = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0, depthTest: false })); ln.renderOrder = 8; g.add(ln);
+    const lb = label(text, color); lb.position.copy(A).lerp(B, 0.5).add(new V3(0, 0.1, 0)); g.add(lb);
+    g.userData = { ln, lb, A, B }; scene.add(g); return g;
+  }
+  const RED = '#C2410C';
+  const mDims = [
+    dim([-RX + 0.02, 0.03, -RZ + 0.03], [RX - 0.02, 0.03, -RZ + 0.03], '6 000 мм', RED, new V3(0, 0.08, 0)),
+    dim([-RX + 0.03, 0, -RZ + 0.03], [-RX + 0.03, RH, -RZ + 0.03], '2 750 мм', RED, new V3(0.08, 0, 0)),
+    dim([-RX + 0.03, 0.03, -RZ + 0.03], [-RX + 0.03, 0.03, RZ - 0.03], '4 200 мм', RED, new V3(0, 0.08, 0)),
+    dim([RX - 0.03, WIN.y0 - 0.05, WIN.z0], [RX - 0.03, WIN.y0 - 0.05, WIN.z1], 'окно 2 000', RED, new V3(0, 0.08, 0))
+  ];
+  const kDims = [
+    dim([-RX, 2.52, -RZ + 0.4], [0.16, 2.52, -RZ + 0.4], '3 160 мм', '#2F6FE4', new V3(0, 0.07, 0)),
+    dim([-RX + 0.4, 2.52, -RZ], [-RX + 0.4, 2.52, 0.26], '2 360 мм', '#2F6FE4', new V3(0, 0.07, 0)),
+    dim([1.45, 0, -RZ + 0.62], [1.45, TALL, -RZ + 0.62], '2 350 мм', '#2F6FE4', new V3(0.07, 0, 0)),
+    dim([-RX + 0.7, 0, -RZ + 0.62], [-RX + 0.7, TOP, -RZ + 0.62], '900 мм', '#2F6FE4', new V3(0.07, 0, 0))
+  ];
+  const showDim = (d, k) => { d.visible = k > 0.001; const { ln, lb } = d.userData; ln.material.opacity = k; lb.material.opacity = k; ln.scale.setScalar(1); };
+
+  // люди: заказчик, замерщик ASD, два монтажника
+  const skinM = M({ color: '#E2B894', roughness: 0.7 });
+  function person({ shirt, pants, hair = '#3B2A20', cap = null }) {
+    const g = new THREE.Group(), m = (c, r = 0.85) => M({ color: c, roughness: r });
+    const shirtM = m(shirt), pantsM = m(pants), shoeM = m('#1E1E1E', 0.6);
+    const leg = (x) => { const p = new THREE.Group(); p.position.set(x, 0.9, 0); const l = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.72, 4, 10), pantsM); l.position.y = -0.43; p.add(l); const s = new THREE.Mesh(new RoundedBoxGeometry(0.12, 0.08, 0.26, 2, 0.03), shoeM); s.position.set(0, -0.86, 0.05); p.add(s); g.add(p); return p; };
+    const arm = (x) => { const p = new THREE.Group(); p.position.set(x, 1.44, 0); const a = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.5, 4, 10), shirtM); a.position.y = -0.3; p.add(a); const h = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), skinM); h.position.y = -0.6; p.add(h); g.add(p); return p; };
+    const legL = leg(-0.1), legR = leg(0.1);
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.42, 6, 16), shirtM); torso.scale.set(1.12, 1, 0.72); torso.position.y = 1.2; g.add(torso);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.1, 12), skinM); neck.position.y = 1.55; g.add(neck);
+    const head = new THREE.Group(); head.position.y = 1.67; g.add(head);
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(0.105, 24, 16), skinM); hd.scale.set(0.95, 1.1, 1); head.add(hd);
+    const hr = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), m(hair, 0.9)); hr.position.set(0, 0.02, -0.01); head.add(hr);
+    if (cap) { const c = new THREE.Mesh(new THREE.SphereGeometry(0.115, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), m(cap, 0.7)); c.position.y = 0.03; head.add(c); const v = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.012, 20, 1, false, -Math.PI / 2, Math.PI), m(cap, 0.7)); v.position.set(0, 0.03, 0.06); head.add(v); }
+    const armL = arm(-0.24), armR = arm(0.24);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    g.visible = false; scene.add(g);
+    return { g, legL, legR, armL, armR, head, torso };
+  }
+  const client = person({ shirt: '#9DB4C8', pants: '#3A3F4A', hair: '#5A3B26' });
+  const measurer = person({ shirt: '#2F3A33', pants: '#2A2C30', hair: '#2A2420', cap: '#8FA68E' });
+  const inst1 = person({ shirt: '#8FA68E', pants: '#2A2C30', cap: '#2F3A33' }), inst2 = person({ shirt: '#8FA68E', pants: '#2A2C30', cap: '#2F3A33' });
+  // планшет и лазерный дальномер замерщика
+  const tablet = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.012, 0.27, 2, 0.006), M({ color: '#1C1C1E', roughness: 0.3 })); tablet.position.set(0.02, -0.6, 0.12); tablet.rotation.x = 0.5; measurer.armL.add(tablet);
+  const meter = new THREE.Mesh(box(0.05, 0.03, 0.11), M({ color: '#D9A441', roughness: 0.5 })); meter.position.set(0, -0.62, 0.04); measurer.armR.add(meter);
+  const laser = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new V3(), new V3(0, 0, 1)]), new THREE.LineBasicMaterial({ color: '#FF2A2A', transparent: true, opacity: 0.9 }));
+  laser.visible = false; laser.renderOrder = 7; scene.add(laser);
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), new THREE.MeshBasicMaterial({ color: '#FF3B3B' })); dot.visible = false; scene.add(dot);
+
+  const walkTo = (P, from, to, k, t) => { // проход по прямой с шагом
+    const x = lerp(from[0], to[0], easeIO(k)), z = lerp(from[1], to[1], easeIO(k));
+    P.g.position.set(x, 0, z);
+    if (k < 1) { P.g.rotation.y = Math.atan2(to[0] - from[0], to[1] - from[1]); const s = Math.sin(t * 7.5) * 0.45; P.legL.rotation.x = s; P.legR.rotation.x = -s; P.armL.rotation.x = -s * 0.7; P.armR.rotation.x = s * 0.7; }
+    return k >= 1;
+  };
+  const still = P => { P.legL.rotation.x = P.legR.rotation.x = 0; };
+  const face = (P, x, z) => { P.g.rotation.y = Math.atan2(x - P.g.position.x, z - P.g.position.z); };
+
+  // речь и пожелания (HTML поверх 3D)
+  const ov = opts.overlay || null;
+  const bubbleC = ov && Object.assign(document.createElement('div'), { className: 'apt-say' });
+  const bubbleM = ov && Object.assign(document.createElement('div'), { className: 'apt-say is-asd' });
+  const notes = ov && Object.assign(document.createElement('div'), { className: 'apt-notes' });
+  if (ov) ov.append(bubbleC, bubbleM, notes);
+  const SAY = ['Хочу угловую кухню, чтобы было много места', 'Холодильник встроенный, в пенал', 'Фасады без ручек, современные', 'И подсветку над столешницей', 'Стол — у окна'];
+  const WISH = ['Угловая кухня, мойка у стены', 'Пенал: духовой шкаф + холодильник', 'Фасады без ручек (профиль Gola)', 'Подсветка рабочей зоны', 'Обеденная зона у окна'];
+  const _p = new V3();
+  function bubble(el, P, text, show) {
+    if (!el) return;
+    el.style.opacity = show ? 1 : 0;
+    if (!show) return;
+    if (el.textContent !== text) el.textContent = text;
+    _p.set(P.g.position.x, 2.05, P.g.position.z).project(cam);
+    el.style.transform = `translate(${(_p.x + 1) / 2 * W}px, ${(1 - _p.y) / 2 * H}px) translate(-50%, -100%)`;
+  }
+  function setNotes(n, show) {
+    if (!notes) return;
+    notes.style.opacity = show ? 1 : 0;
+    const html = '<b>Пожелания заказчика</b><ul>' + WISH.slice(0, n).map(w => `<li>${w}</li>`).join('') + '</ul>';
+    if (notes.dataset.n !== String(n)) { notes.innerHTML = html; notes.dataset.n = n; }
+  }
+
+  let stage = 0, tS = 0, finishK = -1;
+  const STAGE_LEN = [0, Infinity, 4.5, 4.2, 0];
+  function setFinish(k) {
+    if (k === finishK) return; finishK = k;
+    floorWood.opacity = k; floorWood.transparent = k < 0.999; floorWood.depthWrite = k > 0.99; floorWood.needsUpdate = true;
+    const plaster = k > 0.5;
+    if ((wallMat.map === plasterT) !== plaster) { wallMat.map = plaster ? plasterT : concreteT; wallMat.needsUpdate = true; ceilMat.map = plaster ? null : ceilMat.userData.map; ceilMat.color.set(plaster ? '#F4F2EE' : '#FFFFFF'); ceilMat.needsUpdate = true; }
+    finish.visible = plaster;
+  }
+  ceilMat.userData.map = ceilMat.map;
   function frontsAnim(obj, k) {
     const fr = obj.userData.fronts; if (!fr) return;
     fr.forEach((f, i) => {
@@ -434,35 +557,90 @@ export function createApartment(renderer, opts = {}) {
       else if (f.type === 'drawer') f.pivot.position.z = -FT / 2 + (1 - kk) * 0.38;
     });
   }
-  function animateBuild(dt) {
-    tA += dt;
-    // 0–1.2 с: отделка (стены, пол, потолок)
-    finishK = easeIO(tA / 1.2);
-    floorWood.opacity = finishK; floorWood.depthWrite = finishK > 0.99; floorWood.transparent = finishK < 0.999;
-    if (finishK > 0.5 && wallMat.map !== plasterT) { wallMat.map = plasterT; wallMat.needsUpdate = true; finish.visible = true; ceilMat.map = null; ceilMat.color.set('#F4F2EE'); ceilMat.needsUpdate = true; }
-    parts.forEach(p => {
-      const k = (tA - p.t0) / 0.75; if (k < 0) { p.obj.visible = false; return; }
-      p.obj.visible = true;
-      const e = easeOut(k), b = easeBack(k), o = p.obj;
-      o.position.copy(p.home); o.scale.setScalar(1);
-      if (p.kind === 'slideZ') { o.position.z += (1 - e) * 0.9; o.position.y += (1 - e) * 0.25; }
-      else if (p.kind === 'slideX') { o.position.x += (1 - e) * 0.9; o.position.y += (1 - e) * 0.25; }
-      else if (p.kind === 'drop') o.position.y += (1 - e) * 0.6;
-      else if (p.kind === 'dropUp') o.position.y += (1 - e) * 0.7;
-      else if (p.kind === 'rise') { o.position.y -= (1 - b) * 0.0; o.scale.setScalar(Math.max(0.001, b)); }
-      else if (p.kind === 'pop') o.scale.setScalar(Math.max(0.001, b));
-      else if (p.kind === 'fade') o.scale.set(1, Math.max(0.001, e), 1);
-      else if (p.kind === 'light') o.scale.set(Math.max(0.001, e), 1, 1);
-      frontsAnim(o, k);
+  const placeHome = p => { p.obj.visible = true; p.obj.position.copy(p.home); p.obj.rotation.copy(p.rot); p.obj.scale.setScalar(1); frontsAnim(p.obj, 9); };
+
+  // Состояние сцены целиком определяется (этап, время в этапе)
+  function pose(dt) {
+    const t = tS;
+    // отделка
+    setFinish(stage < 4 ? 0 : stage === 4 ? easeIO(t / 1.2) : 1);
+    // люди
+    [client, measurer, inst1, inst2].forEach(P => { P.g.visible = false; });
+    laser.visible = dot.visible = false;
+    let sayC = false, sayM = false, nNotes = 0;
+    if (stage === 1) {
+      client.g.visible = measurer.g.visible = true;
+      const doneC = walkTo(client, [-2.2, 2.6], [0.0, -0.7], t / 2.4, t);
+      const doneM = walkTo(measurer, [-2.2, 2.6], [-1.35, -0.15], (t - 0.5) / 2.4, t);
+      if (doneC) { still(client); face(client, -1.2, -2); const g = t * 2.6; client.armR.rotation.set(-1.1 + Math.sin(g) * 0.35, 0, -0.25 + Math.sin(g * 0.7) * 0.15); client.armL.rotation.set(-0.3 + Math.sin(g + 1) * 0.15, 0, 0.1); client.head.rotation.y = Math.sin(t * 0.9) * 0.25; sayC = true; }
+      if (doneM) {
+        still(measurer);
+        const cyc = (t - 3) % 9, targets = [[-1.5, 0.05, -RZ], [-RX, 1.2, -1.2], [RX, 1.3, 0.4], [-RX, 2.2, -RZ]];
+        if (t > 3 && cyc < 4) { // замер дальномером
+          const tg = new V3(...targets[Math.floor((t - 3) / 9 * 4 + cyc) % 4]);
+          face(measurer, tg.x, tg.z); measurer.armR.rotation.set(-1.45, 0, 0); measurer.armL.rotation.set(-0.2, 0, 0); measurer.head.rotation.x = 0;
+          measurer.g.updateMatrixWorld(true); const hand = new V3(0, -0.66, 0.08); measurer.armR.localToWorld(hand);
+          laser.geometry.setFromPoints([hand, tg]); laser.visible = dot.visible = true; dot.position.copy(tg);
+        } else { // записывает пожелания
+          face(measurer, client.g.position.x, client.g.position.z);
+          measurer.armL.rotation.set(-1.05, 0, 0.15); measurer.armR.rotation.set(-1.2 + Math.sin(t * 14) * 0.05, 0, -0.35 + Math.sin(t * 9) * 0.05); measurer.head.rotation.x = 0.35;
+          sayM = cyc > 7.5;
+        }
+        nNotes = clamp(Math.floor((t - 3.5) / 1.8) + 1, 0, WISH.length);
+      }
+    }
+    bubble(bubbleC, client, SAY[Math.floor(t / 3.2) % SAY.length], sayC);
+    bubble(bubbleM, measurer, 'Записал. Всё учтём в проекте', sayM);
+    setNotes(stage === 2 ? WISH.length : nNotes, stage === 1 && nNotes > 0 || stage === 2);
+    // размеры помещения
+    mDims.forEach((d, i) => showDim(d, stage === 1 ? easeOut((t - 4 - i * 2.2) / 0.6) : stage === 2 ? 0.35 * (1 - easeOut(t / 1.5)) : 0));
+    kDims.forEach((d, i) => showDim(d, stage === 2 ? easeOut((t - 2.2 - i * 0.35) / 0.5) : stage === 3 ? 1 - easeOut(t / 1) : 0));
+    // чертёж
+    kParts.forEach((p, i) => { if (!p.bp) return;
+      const k = stage === 2 ? easeOut((t - i * 0.1) / 0.6) * 0.95 : stage === 3 ? 0.4 : stage === 4 ? 0.4 * (1 - easeOut((t - 1.4 - i * 0.16 - 0.6) / 0.5)) : 0;
+      p.bp.material.opacity = k; p.bp.visible = k > 0.01; });
+    // модули кухни
+    if (stage < 3) kParts.forEach(p => { p.obj.visible = false; });
+    else if (stage === 3) kParts.forEach((p, i) => {
+      const k = (t - i * 0.13) / 0.8; const o = p.obj;
+      if (k <= 0 || o === ledStrip) { o.visible = false; return; }
+      o.visible = true; o.rotation.copy(p.rot); o.position.copy(p.home).add(p.off); o.scale.set(1, Math.max(0.001, easeOut(k)), 1); frontsAnim(o, 9);
     });
-    const kl = easeOut((tA - 3.1) / 1.0);
-    lampLights.forEach(l => { l.intensity = kl * 2.2; }); underLight.intensity = easeOut((tA - 2.6) / 0.8) * 1.4; fill.intensity = kl * 1.2;
-    if (tA > 4.4) { phase = 'built'; parts.forEach(p => { p.obj.visible = true; p.obj.position.copy(p.home); p.obj.scale.setScalar(1); frontsAnim(p.obj, 9); }); floorWood.transparent = false; floorWood.depthWrite = true; floorWood.opacity = 1; floorWood.needsUpdate = true; }
+    else if (stage === 4) kParts.forEach((p, i) => {
+      const o = p.obj, k = (t - 1.4 - i * 0.16) / 0.9;
+      o.visible = true; o.rotation.copy(p.rot); o.scale.setScalar(1);
+      o.position.copy(p.home).addScaledVector(p.off, 1 - easeIO(k));
+      if (o === ledStrip) o.scale.set(Math.max(0.001, easeOut(k)), 1, 1);
+      frontsAnim(o, k < 0 ? 9 : k);
+    });
+    else kParts.forEach(placeHome);
+    // монтажники
+    const tEnd = 1.4 + kParts.length * 0.16 + 1.2;
+    if (stage === 4) {
+      inst1.g.visible = inst2.g.visible = true;
+      const inW = t / 1.6, outW = (t - tEnd) / 1.6;
+      [[inst1, [-0.9, -0.2]], [inst2, [-1.3, 0.4]]].forEach(([P, pos], j) => {
+        if (outW < 0) {
+          if (walkTo(P, [-2.2, 2.6], pos, inW - j * 0.15, t)) { still(P); face(P, j ? -RX : -1.2, j ? -0.6 : -RZ); const s = Math.sin(t * 3 + j); P.armL.rotation.set(-1.25 + s * 0.25, 0, 0.15); P.armR.rotation.set(-1.25 - s * 0.25, 0, -0.15); P.head.rotation.x = 0.15; }
+        } else if (walkTo(P, pos, [-2.2, 2.9], outW, t)) P.g.visible = false;
+      });
+    }
+    // декор и свет
+    const kd = stage === 4 ? (t - tEnd + 0.6) : stage === 5 ? 99 : -1;
+    dParts.forEach((p, i) => { const k = (kd - i * 0.2) / 0.8; if (k <= 0) { p.obj.visible = false; return; } placeHome(p); const b = easeBack(k); p.obj.scale.setScalar(Math.max(0.001, Math.min(b, 1.08))); });
+    const kl = stage === 5 ? 1 : stage === 4 ? easeOut((t - tEnd) / 1.2) : 0;
+    lampLights.forEach(l => { l.intensity = kl * 2.2; }); underLight.intensity = kl * 1.4; fill.intensity = kl * 1.2;
+    if (stage === 4 && t > tEnd + 2.4) { stage = 5; tS = 0; if (opts.onStage) opts.onStage(5); }
+    if ((stage === 2 || stage === 3) && t > STAGE_LEN[stage] && !pose.notified) { pose.notified = true; if (opts.onStage) opts.onStage(stage, true); }
   }
-  function build() { if (phase === 'empty') { phase = 'building'; tA = 0; } }
-  function showBuilt() { // без анимации
-    phase = 'building'; tA = 99; animateBuild(0); floorWood.needsUpdate = true;
+  function resetParts() {
+    parts.forEach(p => { p.obj.visible = false; p.obj.position.copy(p.home); p.obj.rotation.copy(p.rot); p.obj.scale.setScalar(1); });
+    stage = 0; tS = 0; finishK = -1; setFinish(0); pose(0);
   }
+  function next() { if (stage < 5) { stage = stage === 0 ? 1 : stage + 1; tS = 0; pose.notified = false; if (stage === 2 || stage === 3) Object.assign(goal, { yaw: 0.62, pitch: 0.2, dist: 4.6 }); if (stage === 4) Object.assign(goal, homeView); if (opts.onStage) opts.onStage(stage); } }
+  function build() { if (stage === 0) next(); }
+  function showBuilt() { stage = 5; tS = 0; pose(0); }
+
 
   /* ---------- Камера и управление ---------- */
   const target = new V3(-1.1, 1.0, -1.2);
@@ -508,14 +686,15 @@ export function createApartment(renderer, opts = {}) {
 
   /* ---------- Постобработка ---------- */
   let composer = null, gtao = null, bloom = null, W = 1, H = 1;
+  const perf = { ema: 0.016, n: 0 };
   function makeComposer() {
     if (lite) return;
     const rt = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, samples: 4 });
-    composer = new EffectComposer(renderer, rt);
+    composer = new EffectComposer(renderer, rt); composer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.5));
     composer.addPass(new RenderPass(scene, cam));
     gtao = new GTAOPass(scene, cam, W, H);
-    gtao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1.2, scale: 1.1, samples: 16 });
-    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+    gtao.updateGtaoMaterial({ radius: 0.45, distanceExponent: 1.2, thickness: 1.2, scale: 1.1, samples: 12 });
+    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 8 });
     gtao.blendIntensity = 0.9;
     composer.addPass(gtao);
     bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.32, 0.5, 0.92);
@@ -525,12 +704,12 @@ export function createApartment(renderer, opts = {}) {
   function resize(w, h) {
     W = w; H = h; cam.aspect = w / h; cam.updateProjectionMatrix();
     if (!composer && api.active) makeComposer();
-    if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(w, h); }
+    if (composer) { composer.setPixelRatio(Math.min(renderer.getPixelRatio(), 1.5)); composer.setSize(w, h); }
   }
 
   /* ---------- Кадр ---------- */
   function frame(dt) {
-    if (phase === 'building') animateBuild(dt);
+    tS += dt; pose(dt);
     let pos;
     if (fly) {
       fly.t += dt; const k = easeIO(fly.t / fly.dur);
@@ -544,18 +723,27 @@ export function createApartment(renderer, opts = {}) {
     cam.position.copy(pos); cam.lookAt(target);
     const exp = renderer.toneMappingExposure; renderer.toneMappingExposure = 1.0;
     renderer.setClearColor('#D9D4CB', 1);
+    // адаптивное качество: если кадры тяжёлые — по очереди отключаем AO, свечение, снижаем разрешение
+    perf.ema = perf.ema * 0.95 + dt * 0.05; perf.n++;
+    if (composer && perf.n > 40 && perf.ema > 0.024) {
+      perf.n = 0;
+      if (gtao.enabled) gtao.enabled = false;
+      else if (bloom.enabled) bloom.enabled = false;
+      else if (renderer.getPixelRatio() > 1) { renderer.setPixelRatio(1); composer.setPixelRatio(1); composer.setSize(W, H); }
+    }
     if (composer) composer.render(dt); else renderer.render(scene, cam);
     renderer.toneMappingExposure = exp;
   }
 
   const api = {
     active: false, scene, cam, state, FACADES, TOPS,
-    get phase() { return phase; },
+    get phase() { return stage === 0 ? 'empty' : stage === 5 ? 'built' : 'building'; }, get stage() { return stage; }, next,
     enter() { resetParts(); Object.assign(st, homeView); Object.assign(goal, homeView); enterFly(); api.active = true; resize(W, H); },
     exit() { api.active = false; fly = null; },
     build, showBuilt, reset: resetParts, setFacade, setTop, resize, frame, bind,
     home() { Object.assign(goal, homeView); },
-    skip() { fly = null; Object.assign(st, goal); if (phase === 'building') { tA = 99; animateBuild(0); } }
+    debugT(v) { fly = null; Object.assign(st, goal); tS = v; },
+    skip() { fly = null; Object.assign(st, goal); tS += 30; pose(0); }
   };
   resetParts();
   return api;
