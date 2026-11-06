@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from fit2 import basis, proj, cx, cy
 p=np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fit2.npy'))
