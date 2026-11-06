@@ -234,7 +234,11 @@ export async function analyze(img) {
   const [qc, qg] = canvasOf(W, H); qg.fillStyle = '#fff';
   const poly = q => { qg.beginPath(); q.forEach(([x, y], i) => i ? qg.lineTo(x, y) : qg.moveTo(x, y)); qg.closePath(); qg.fill(); };
   out.forEach(sg => { poly(sg.lower); if (sg.top) poly(sg.top); });
-  const qd = qg.getImageData(0, 0, W, H).data, near2 = dilate(m, W, H, Math.round(Math.max(W, H) * 0.02));
+  const qa = qg.getImageData(0, 0, W, H).data; // нижний ряд
+  out.forEach(sg => sg.uppers.forEach(u => poly(u.q)));
+  const qall = qg.getImageData(0, 0, W, H).data;
+  let nM = 0, unc = 0; for (let i = 0; i < W * H; i += 3) if (m[i]) { nM++; if (qall[i * 4] < 128) unc++; }
+  const qd = qa, near2 = dilate(m, W, H, Math.round(Math.max(W, H) * 0.02));
   let nL = 0, cov = 0, nQ = 0, spill = 0;
   for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
     const i = y * W + x, inQ = qd[i * 4] > 127, low = pL(x, y) > 0.5;
@@ -242,7 +246,7 @@ export async function analyze(img) {
     if (inQ) { nQ++; if (!near2[i]) spill++; }
   }
   const segH = out.map(sg => { const [, , br, bl] = sg.lower, [tl, tr] = sg.lower; return [bl[1] - tl[1], br[1] - tr[1]]; });
-  const conf = { coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
+  const conf = { uncovered: nM ? unc / nM : 1, coverage: nL ? cov / nL : 0, spill: nQ ? spill / nQ : 1, stacked: scanned ? stacked / scanned : 0, segs: out.length,
     ratio: Math.max(...segH.map(([a, b]) => Math.max(a, b) / Math.max(1, Math.min(a, b)))) };
   const sure = conf.coverage > 0.6 && conf.spill < 0.22 && conf.stacked < 0.2 && conf.ratio < 2.6 && out.length <= 3;
   if (!sure) return { ok: false, reason: 'complex', conf, mask: m, W, H };
