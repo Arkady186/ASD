@@ -7,7 +7,7 @@
    Фото никуда не отправляется. Модели скачиваются один раз и хранятся в кэше браузера.
    По найденным границам строится геометрия новой кухни: столешница, фасады, верхние шкафы. */
 const ORT = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/';
-const SEG = { base: 'https://cdn.jsdelivr.net/gh/Arkady186/ASD@MODELS_REF/seg/', size: 60e6 };
+const SEG = { base: 'https://cdn.jsdelivr.net/gh/Arkady186/ASD@65346db4ebd0d529831a49ecbca90a5cf68778ad/seg/', size: 60e6 };
 const LAMA = { url: 'https://huggingface.co/opencv/inpainting_lama/resolve/main/inpainting_lama_2025jan.onnx', size: 92591623 };
 
 /* классы ADE20K */
