@@ -3,8 +3,8 @@
    совпадает с фото: после спуска с облаков «шторка» справа налево открывает 3D,
    кнопка «Фото-план» задвигает шторку обратно.
    Сданы 5 домов (детально), остальные 17 показаны как прозрачные макеты «в проекте». */
-import * as THREE from './vendor/three.module.min.js';
-import { mergeGeometries as mergeRaw, mergeVertices } from './vendor/BufferGeometryUtils.js';
+import * as THREE from 'three';
+import { mergeGeometries as mergeRaw, mergeVertices } from './vendor/jsm/utils/BufferGeometryUtils.js';
 // Слияние геометрий: приводим к общему набору атрибутов и неиндексированному виду
 function mergeGeometries(list) {
   const keys = list.map(g => Object.keys(g.attributes).sort().join());
@@ -21,6 +21,7 @@ function mergeGeometries(list) {
   return out;
 }
 import { DATA } from './k3d-data.js';
+import { createApartment } from './apartment3d.js';
 
 const section = document.getElementById('kvartal');
 const media = section && section.querySelector('.media');
@@ -344,7 +345,7 @@ function buildScene() {
   });
   add(mergeGeometries(walkGeos), M({ color: '#B9B5AC', roughness: 0.95 }), false, true);
   add(mergeGeometries(roadGeos), M({ map: asphalt, roughness: 0.9 }), false, true);
-  const paths = DATA.paths.map(p => ({ w: p.w, line: polyline(smooth(p.p, 2.5)) }));
+  const paths = [...DATA.paths, ...(DATA.walks || [])].map(p => ({ w: p.w, line: polyline(smooth(p.p, 2.5)) }));
   paths.forEach(p => pathGeos.push(ribbonGeo(p.line.pts, p.w, 0.5)));
   DATA.loops.forEach(l => {
     const r = Math.hypot(l.r[0] - l.c[0], l.r[1] - l.c[1]), pts = [];
@@ -406,7 +407,7 @@ function buildScene() {
     cars.setMatrixAt(i, dummy.matrix); cars.setColorAt(i, col.set(pick(CAR_COLS)));
   });
   const movers = [];
-  const carRoads = roads.slice(0, 3);
+  const carRoads = roads;
   for (let i = 0; i < nMove; i++) {
     const r = carRoads[i % carRoads.length], dir = rnd() > 0.5 ? 1 : -1;
     movers.push({ i: parked.length + i, r, s: rnd() * r.line.total, v: (8 + rnd() * 6) * dir, lane: dir * r.w * 0.24 });
@@ -760,6 +761,7 @@ function start() {
   let S = null;
   try { S = buildScene(); } catch (e) { console.warn('3D-генплан не запустился', e); return; }
   const { renderer, scene, cam, sun, sunDir, pickables, animate, floorHL, ringHL } = S;
+  const apt = createApartment(renderer, { lite: LITE, viewImage: 'assets/img/kvartal.webp' });
 
   // Слой 3D поверх фото: canvas + край «шторки» + интерфейс
   const wrap = document.createElement('div'); wrap.className = 'k3d'; wrap.hidden = true;
@@ -769,6 +771,7 @@ function start() {
   const edge = document.createElement('div'); edge.className = 'k3d-edge';
   wrap.append(canvas, edge);
   media.appendChild(wrap);
+  apt.bind(canvas);
 
   const bar = document.createElement('div'); bar.className = 'k3d-bar';
   bar.innerHTML = `
@@ -815,7 +818,7 @@ function start() {
   }
   function resize() {
     W = media.clientWidth; H = media.clientHeight; if (!W || !H) return;
-    renderer.setSize(W, H, false); canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    renderer.setSize(W, H, false); canvas.style.width = W + 'px'; canvas.style.height = H + 'px'; apt.resize(W, H);
     if (mode !== '3d') { measureCrop(); Object.assign(st, { sx: crop.px, sy: crop.py }); Object.assign(goal, { sx: crop.px, sy: crop.py }); }
     need = true;
   }
@@ -875,6 +878,7 @@ function start() {
     clearTimeout(openTimer);
     if (mode === 'photo' || mode === 'closing') return;
     if (mode === 'opening') { await new Promise(r => setTimeout(r, 1700)); }
+    if (mode === 'int' || mode === 'diving') { await leaveApartment(true); }
     mode = 'closing';
     deselect(); tip.hidden = true; section.classList.remove('is-3d');
     measureCrop();
@@ -906,10 +910,20 @@ function start() {
   function frame(now) {
     raf = 0;
     if (wrap.hidden) return;
-    const dt = Math.min(0.05, (now - (last || now)) / 1000); last = now;
+    const dt = Math.min(0.1, (now - (last || now)) / 1000); last = now;
     tAnim += dt;
     if (LITE && now - lastFrame < 30) { loop(); return; }
     lastFrame = now;
+    if (mode === 'int') { apt.frame(dt); if (vis && !frozen) loop(); return; }
+    if (dive) {
+      const k = clamp((now - dive.t0) / dive.dur, 0, 1), e = ease(k), u = 1 - e;
+      const p = dive.p0.clone().multiplyScalar(u * u).addScaledVector(dive.p1, 2 * u * e).addScaledVector(dive.p2, e * e);
+      cam.position.copy(p); cam.quaternion.copy(dive.q0).slerp(dive.q2, ease(clamp(k * 1.25, 0, 1)));
+      cam.fov = lerp(dive.fov0, 40, e); cam.clearViewOffset(); cam.near = 0.5; cam.updateProjectionMatrix();
+      animate(dt, tAnim); renderer.render(scene, cam);
+      if (k >= 1) { const r = dive.res; dive = null; r(); }
+      if (vis && !frozen) loop(); return;
+    }
     if (flight) {
       const k = clamp((now - flight.t0) / flight.dur, 0, 1), e = ease(k);
       for (const key of ['tx', 'tz', 'dist', 'yaw', 'pitch', 'roll', 'sx', 'sy', 'fs']) st[key] = lerp(flight.from[key], flight.to[key], e);
@@ -1062,7 +1076,7 @@ function start() {
       if (hit.point.y > PLINTH) {
         floorHover = f;
         floorHL.visible = true; floorHL.position.set(h.x, PLINTH + (f - 0.5) * FH, h.z); floorHL.rotation.y = -h.a; floorHL.scale.set(h.L + 0.8, 1, h.D + 0.8);
-        showTip(e, `<b>${f} этаж</b><span>Нажмите, чтобы выбрать квартиру</span>`); need = true; return;
+        showTip(e, `<b>${f} этаж</b><span>Нажмите — влетим в квартиру</span>`); need = true; return;
       }
     }
     if (h) showTip(e, h.built ? `<b>Дом ${h.no}</b><span>Сдан · ${FLOORS} этажей · нажмите, чтобы рассмотреть</span>` : `<b>Дом ${h.no}</b><span>В проекте · ${Math.round(h.H / 3.1)} этажей</span>`);
@@ -1072,7 +1086,7 @@ function start() {
     const hit = hitAt(e.clientX, e.clientY), obj = hit && hit.object;
     if (!obj) { if (selected) deselect(); return; }
     const h = obj.userData.house, pl = obj.userData.place;
-    if (h && h.built && selected === h && hit.point.y > PLINTH) { goApartments(); return; }
+    if (h && h.built && selected === h && hit.point.y > PLINTH) { enterApartment(h, clamp(Math.floor((hit.point.y - PLINTH) / FH) + 1, 1, FLOORS), hit.point); return; }
     if (h) selectHouse(h);
     else if (pl && pl.spot) focusPlace(pl.spot, true);
   }
@@ -1091,14 +1105,15 @@ function start() {
       ? `<button type="button" class="k3d-x" aria-label="Закрыть">×</button>
          <p class="k3d-kick"><i class="lg-built"></i>Дом сдан</p><h3>Дом ${h.no}</h3>
          <dl><div><dt>Этажей</dt><dd>${FLOORS}</dd></div><div><dt>Подъездов</dt><dd>${h.sections}</dd></div><div><dt>Длина</dt><dd>${Math.round(h.L)} м</dd></div></dl>
-         <p>Наведите на фасад, чтобы выбрать этаж, или откройте квартиры дома.</p>
-         <a class="btn" href="#dom" data-go="dom">Выбрать квартиру</a>`
+         <p>Наведите на фасад и нажмите на этаж — камера влетит в окно, и вы увидите, как в этой квартире встанет кухня ASD.</p>
+         <button type="button" class="btn k3d-enter">Заглянуть в квартиру</button>`
       : `<button type="button" class="k3d-x" aria-label="Закрыть">×</button>
          <p class="k3d-kick"><i class="lg-plan"></i>В проекте</p><h3>Дом ${h.no}</h3>
          <dl><div><dt>Этажей</dt><dd>${Math.round(h.H / 3.1)}</dd></div><div><dt>Статус</dt><dd>Строится позже</dd></div></dl>
          <p>Дом ещё не построен. Узнайте о старте продаж в офисе продаж.</p>
          <a class="btn" href="tel:+78005550562">Позвонить в офис</a>`;
     card.hidden = false; section.classList.add('k3d-card-on');
+    const en = card.querySelector('.k3d-enter'); if (en) en.addEventListener('click', () => enterApartment(h, 12));
     card.querySelector('.k3d-x').addEventListener('click', () => { deselect(); flyTo({ ...goal, dist: Math.max(goal.dist, 700), pitch: 0.62 }, 1200); });
   }
   function deselect() {
@@ -1121,6 +1136,80 @@ function start() {
   document.querySelectorAll('.view-kvartal .places button[data-spot]').forEach(b => {
     b.addEventListener('click', () => { if (mode === '3d') focusPlace(b.dataset.spot, false); });
   });
+
+  /* ---------- Полёт в окно и квартира ---------- */
+  let dive = null, savedView = null, aptHouse = null, aptFloor = 1;
+  const flash = document.createElement('div'); flash.className = 'k3d-flash'; wrap.appendChild(flash);
+  const fade = (on, ms = 380) => new Promise(r => { flash.style.transitionDuration = ms + 'ms'; flash.classList.toggle('is-on', on); setTimeout(r, reduced.matches ? 0 : ms); });
+  const aui = document.createElement('div'); aui.className = 'apt-ui'; wrap.appendChild(aui);
+  function aptUI() {
+    const F = apt.FACADES, s = apt.state, f = F.find(x => x.id === s.facade);
+    const built = apt.phase !== 'empty';
+    aui.innerHTML = `
+      <div class="apt-top">
+        <button type="button" class="k3d-btn apt-back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>В квартал</span></button>
+        <a class="k3d-btn apt-cta" href="https://asd-mebel.ru/quiz.html" target="_blank" rel="noopener">Хочу такую кухню</a>
+        <a class="k3d-btn apt-call" href="tel:+79185513330"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 005 5L15 13l5 2v4a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z"/></svg><span>Позвонить в ASD</span></a>
+      </div>
+      <div class="apt-info">
+        <p class="k3d-kick">Дом ${aptHouse ? aptHouse.no : ''} · ${aptFloor} этаж</p>
+        <h3>${built ? 'Кухня ASD в этой квартире' : 'Квартира после сдачи дома'}</h3>
+        <p>${built ? 'Покрутите комнату и примерьте материалы фасадов и столешницы — как в «Гиде по материалам» ASD.' : 'Голые стены и бетонный пол — так квартиру получает новосёл. Нажмите кнопку и посмотрите, как здесь встанет мебель.'}</p>
+        ${built ? '<button type="button" class="k3d-btn apt-reset">Показать пустую квартиру</button>' : '<button type="button" class="btn apt-build">Собрать мебель</button>'}
+      </div>
+      <div class="apt-mat"${built ? '' : ' hidden'}>
+        <div class="apt-row"><span class="apt-lab">Фасады</span>${F.map(x => `<button type="button" class="apt-chip${x.id === s.facade ? ' is-on' : ''}" data-f="${x.id}">${x.name}<small>${x.price}</small></button>`).join('')}</div>
+        <div class="apt-row"><span class="apt-lab">Цвет</span>${f.colors.map((c, i) => `<button type="button" class="apt-sw${i === s.color ? ' is-on' : ''}" data-c="${i}" style="--c:${c[2]}" title="${c[0]}" aria-label="${c[0]}"></button>`).join('')}<span class="apt-cname">${f.colors[s.color][0]}</span></div>
+        <div class="apt-row"><span class="apt-lab">Столешница</span>${apt.TOPS.map(x => `<button type="button" class="apt-chip${x.id === s.top ? ' is-on' : ''}" data-t="${x.id}">${x.name}</button>`).join('')}</div>
+        <p class="apt-note">${f.note}</p>
+      </div>`;
+  }
+  aui.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.classList.contains('apt-back')) leaveApartment(false);
+    else if (b.classList.contains('apt-build')) { apt.build(); setTimeout(aptUI, 400); }
+    else if (b.classList.contains('apt-reset')) { apt.reset(); aptUI(); }
+    else if (b.dataset.f) { apt.setFacade(b.dataset.f, 0); aptUI(); }
+    else if (b.dataset.c) { apt.setFacade(apt.state.facade, +b.dataset.c); aptUI(); }
+    else if (b.dataset.t) { apt.setTop(b.dataset.t); aptUI(); }
+  });
+  async function enterApartment(h, floor, point) {
+    if (mode !== '3d' || !h.built) return;
+    mode = 'diving'; aptHouse = h; aptFloor = floor;
+    hideTip(); card.hidden = true; section.classList.remove('k3d-card-on'); section.classList.add('is-diving');
+    savedView = { ...st };
+    // точка на фасаде, обращённом к камере
+    const nx = Math.sin(h.a), nz = -Math.cos(h.a), side = (cam.position.x - h.x) * nx + (cam.position.z - h.z) * nz > 0 ? 1 : -1;
+    const ax = Math.cos(-h.a), az = -Math.sin(-h.a);
+    let along = 0; if (point) along = clamp((point.x - h.x) * ax + (point.z - h.z) * az, -h.L / 2 + 6, h.L / 2 - 6);
+    along = Math.round(along / 3.8) * 3.8;
+    const wy = PLINTH + (floor - 0.45) * FH;
+    const W0 = new V3(h.x + nx * side * h.D / 2 + ax * along, wy, h.z + nz * side * h.D / 2 + az * along);
+    const n = new V3(nx * side, 0, nz * side);
+    const p2 = W0.clone().addScaledVector(n, 2.2);
+    const p0 = cam.position.clone();
+    const p1 = W0.clone().addScaledVector(n, 70).add(new V3(0, 25, 0)).lerp(p0, 0.35);
+    const look = new THREE.Object3D(); look.position.copy(p2); look.lookAt(W0.clone().addScaledVector(n, -5)); 
+    dive = { p0, p1, p2, q0: cam.quaternion.clone(), q2: look.quaternion.clone(), fov0: cam.fov, t0: performance.now(), dur: reduced.matches ? 1 : 2600, res: null };
+    loop();
+    await new Promise(r => { dive.res = r; setTimeout(() => fade(true, 420), reduced.matches ? 0 : 2200); });
+    await fade(true, 60);
+    apt.resize(W, H); apt.enter(); aptUI();
+    mode = 'int'; section.classList.remove('is-diving'); section.classList.add('is-int');
+    loop();
+    await new Promise(r => setTimeout(r, 120));
+    fade(false, 700);
+  }
+  async function leaveApartment(fast) {
+    if (mode !== 'int' && mode !== 'diving') return;
+    if (mode === 'diving') { await new Promise(r => { const w = () => (mode === 'int' ? r() : setTimeout(w, 50)); w(); }); }
+    await fade(true, fast ? 150 : 380);
+    apt.exit(); section.classList.remove('is-int');
+    if (savedView) { Object.assign(st, savedView); Object.assign(goal, savedView); }
+    mode = '3d'; if (aptHouse) selectHouse(aptHouse);
+    applyCam(); renderer.render(scene, cam); loop();
+    await fade(false, fast ? 150 : 600);
+  }
 
   /* Кнопки панели */
   bar.addEventListener('click', e => {
@@ -1145,7 +1234,7 @@ function start() {
 
   window.OP3D = {
     open, close, flyTo,
-    isOpen: () => mode === '3d' || mode === 'opening',
+    isOpen: () => mode === '3d' || mode === 'opening' || mode === 'int' || mode === 'diving', apt,
     freeze(v) { frozen = v; if (!v) loop(); },
     shot() { applyCam(); updatePins(); renderer.render(scene, cam); return renderer.info.render; },
     get mode() { return mode; }, scene, cam, renderer, state: st, goal, data: DATA
